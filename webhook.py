@@ -8,11 +8,18 @@ app = Flask(__name__)
 
 CSV_FILE = "whatsapp_responses.csv"
 
-# Ensure file exists
+#CSV file exists with headers
 if not os.path.exists(CSV_FILE):
-    with open(CSV_FILE, "w", newline="") as f:
+    with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["timestamp", "from", "body", "status"])
+        writer.writerow([
+            "timestamp",
+            "from_number",
+            "message_body",
+            "command_type",
+            "device",
+            "status"
+        ])
 
 @app.route("/", methods=["GET"])
 def home():
@@ -24,24 +31,44 @@ def health_check():
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
-    incoming_msg = request.values.get("Body", "")
+    timestamp = datetime.utcnow().isoformat()
+
+    incoming_msg = request.values.get("Body", "").strip()
     from_number = request.values.get("From", "")
+    device_info = request.headers.get("User-Agent", "Unknown")
 
-    resp = MessagingResponse()
-    reply = f"Received: {incoming_msg}"
-    resp.message(reply)
+    message_upper = incoming_msg.upper()
 
-    # Log into CSV
-    with open(CSV_FILE, "a", newline="") as f:
+    # ✅ Detect STOP / UNSUBSCRIBE
+    if message_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
+        command_type = "STOP"
+        status = "UNSUBSCRIBED"
+        reply = "✅ You have been unsubscribed successfully."
+    else:
+        command_type = "MESSAGE"
+        status = "ACTIVE"
+        reply = f"✅ Message received: {incoming_msg}"
+
+    # ✅ Save everything to CSV
+    with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
-            datetime.utcnow().isoformat(),
+            timestamp,
             from_number,
             incoming_msg,
-            "received"
+            command_type,
+            device_info,
+            status
         ])
 
+    resp = MessagingResponse()
+    resp.message(reply)
+
     return str(resp)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=10000)
+
     
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
