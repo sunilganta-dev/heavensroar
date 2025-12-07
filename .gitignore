@@ -2,8 +2,8 @@ echo "venv/
 __pycache__/
 *.pyc
 .env
+google_credentials.json
 .DS_Store
 *.log
 contacts.csv
-whatsapp_responses.csv
 " > .gitignore
