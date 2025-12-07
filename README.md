@@ -30,12 +30,16 @@ deployed and running here: https://heavensroar-jfm-webhook.onrender.com
 
 
 
-## Github Repo: git clone https://github.com/sunilganta-dev/heavensroar
+## Github Repo: 
+git clone https://github.com/sunilganta-dev/heavensroar
 
 ## Create virtual environment:
 
 python -m venv venv
+
 source venv/bin/activate
+
+pip install flask twilio gspread oauth2client gunicorn
 
 ## Install dependencies:
 pip install -r requirements.txt
