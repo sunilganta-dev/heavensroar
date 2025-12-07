@@ -1,41 +1,47 @@
 from flask import Flask, request
-import csv
+from twilio.twiml.messaging_response import MessagingResponse
 from datetime import datetime
+import csv
 import os
 
 app = Flask(__name__)
 
-LOG_FILE = "whatsapp_responses.csv"
+CSV_FILE = "whatsapp_responses.csv"
 
-# Ensure CSV has a header the first time
-if not os.path.exists(LOG_FILE):
-    with open(LOG_FILE, "w", newline="") as f:
+# Ensure file exists
+if not os.path.exists(CSV_FILE):
+    with open(CSV_FILE, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow(["timestamp", "from_number", "body", "status"])
+        writer.writerow(["timestamp", "from", "body", "status"])
+
+@app.route("/", methods=["GET"])
+def home():
+    return "Heaven's Roar Webhook is running!", 200
+
+@app.route("/healthz", methods=["GET"])
+def health_check():
+    return "OK", 200
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
-    from_number = request.form.get("From")
-    body = (request.form.get("Body") or "").strip()
+    incoming_msg = request.values.get("Body", "")
+    from_number = request.values.get("From", "")
 
-    print("\n📩 Incoming WhatsApp Message:")
-    print("From:", from_number)
-    print("Body:", body)
+    resp = MessagingResponse()
+    reply = f"Received: {incoming_msg}"
+    resp.message(reply)
 
-    # Decide status based on message body
-    upper_body = body.upper().strip()
-    status = "UNSUBSCRIBE" if upper_body == "STOP" else "REPLIED"
-
-    # Append to CSV log
-    with open(LOG_FILE, "a", newline="") as f:
+    # Log into CSV
+    with open(CSV_FILE, "a", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([datetime.utcnow().isoformat(), from_number, body, status])
+        writer.writerow([
+            datetime.utcnow().isoformat(),
+            from_number,
+            incoming_msg,
+            "received"
+        ])
 
-    return "OK", 200
-
-
-
+    return str(resp)
+    
 if __name__ == "__main__":
-    port = int(os.environ.get("PORT", 5000))
-    print(f"🚀 Webhook running on port {port}")
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
