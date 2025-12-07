@@ -16,10 +16,7 @@ client = Client(account_sid, auth_token)
 print("🔐 Using SID:", account_sid)
 print("📤 Using FROM:", whatsapp_from)
 
-# =============================
-# SAVE RESULTS HERE
-# =============================
-
+# Save Results
 results_file = "send_results.csv"
 with open(results_file, "w", newline="") as f:
     writer = csv.writer(f)
@@ -52,10 +49,8 @@ with open("contacts.csv", "r", encoding="latin-1") as f:
 
 print(f"📌 Found {len(rows)} contacts")
 
-# =============================
-# SEND + DELIVERY CHECKING
-# =============================
 
+# Send + Delivery Check
 for row in rows:
     name = row["Name"].strip()
     phone = row["PhoneNumber"].strip()
