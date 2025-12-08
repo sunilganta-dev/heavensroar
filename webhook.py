@@ -22,19 +22,19 @@ CREDS = ServiceAccountCredentials.from_json_keyfile_name(
 
 gc = gspread.authorize(CREDS)
 
-# Open your Google Sheet
+# OPEN GOOGLE SHEET
 SHEET = gc.open("HeavensRoar WhatsApp Logs").sheet1
 
-
-# CSV SETUP (DETAILED LOG)
+# CSV BACKUP SETUP
 
 
 CSV_FILE = "whatsapp_responses.csv"
+CLEAN_CSV = "whatsapp_clean_log.csv"
 
+# Detailed CSV
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
+        csv.writer(f).writerow([
             "timestamp",
             "from_number",
             "message_body",
@@ -43,16 +43,10 @@ if not os.path.exists(CSV_FILE):
             "status"
         ])
 
-
-# CLEAN CSV SETUP (MATCHES GOOGLE SHEET FORMAT)
-
-
-CLEAN_CSV = "whatsapp_clean_log.csv"
-
+# Clean CSV matching Google Sheet format
 if not os.path.exists(CLEAN_CSV):
     with open(CLEAN_CSV, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
+        csv.writer(f).writerow([
             "name",
             "phone_number",
             "message",
@@ -60,7 +54,6 @@ if not os.path.exists(CLEAN_CSV):
             "time",
             "status"
         ])
-
 
 # ROUTES
 
@@ -73,43 +66,40 @@ def home():
 def health_check():
     return "OK", 200
 
-# MAIN WHATSAPP WEBHOOK
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
 
-    # ---- Extract timestamp fields ----
+    # --- Extract Core Data ---
     now = datetime.utcnow()
+    timestamp = now.isoformat()
     date_only = now.strftime("%Y-%m-%d")
     time_only = now.strftime("%H:%M:%S")
-    timestamp_iso = now.isoformat()
 
-    # ---- Incoming message data ----
     incoming_msg = request.values.get("Body", "").strip()
-    from_number_raw = request.values.get("From", "")
-    profile_name = request.values.get("ProfileName", "Unknown")
-
-    # Clean phone number: remove 'whatsapp:'
-    phone_number = from_number_raw.replace("whatsapp:", "")
-
+    phone_number = request.values.get("From", "").replace("whatsapp:", "")
     device_info = request.headers.get("User-Agent", "Unknown Device")
+
+    profile_name = phone_number
+
     msg_upper = incoming_msg.upper()
 
-    # ---- STOP / UNSUBSCRIBE logic ----
+    # --- Unsubscribe Logic ---
     if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
-        command_type = "STOP"
         status = "UNSUBSCRIBED"
-        reply_text = "⚠️ You have been unsubscribed from further notifications."
+        command_type = "STOP"
+        reply_text = "You have been unsubscribed from further notifications."
     else:
-        command_type = "MESSAGE"
         status = "ACTIVE"
+        command_type = "MESSAGE"
         reply_text = f"📩 Message received: {incoming_msg}"
 
+
     # SAVE TO DETAILED CSV
+
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            timestamp_iso,
+        csv.writer(f).writerow([
+            timestamp,
             phone_number,
             incoming_msg,
             command_type,
@@ -117,11 +107,11 @@ def whatsapp_webhook():
             status
         ])
 
-    # SAVE TO CLEAN CSV (matches Sheet)
 
+    # SAVE CLEAN VERSION (for analysis)
+ 
     with open(CLEAN_CSV, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
+        csv.writer(f).writerow([
             profile_name,
             phone_number,
             incoming_msg,
@@ -131,6 +121,7 @@ def whatsapp_webhook():
         ])
 
     # SAVE TO GOOGLE SHEETS
+
     try:
         SHEET.append_row([
             profile_name,
@@ -140,16 +131,19 @@ def whatsapp_webhook():
             time_only,
             status
         ])
+
         print("✔ Logged to Google Sheets:", incoming_msg)
 
     except Exception as e:
         print("❌ GOOGLE SHEETS ERROR:", e)
 
     # SEND WHATSAPP AUTO-REPLY
+
     resp = MessagingResponse()
     resp.message(reply_text)
 
     return str(resp)
+
 
 # RENDER RUN
 
