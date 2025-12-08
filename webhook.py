@@ -17,7 +17,7 @@ SCOPE = [
 ]
 
 CREDS = ServiceAccountCredentials.from_json_keyfile_name(
-    "google_credentials.json", SCOPE
+    "/etc/secrets/google_credentials.json", SCOPE
 )
 
 gc = gspread.authorize(CREDS)
