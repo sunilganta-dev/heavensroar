@@ -3,14 +3,34 @@ from twilio.twiml.messaging_response import MessagingResponse
 from datetime import datetime
 import csv
 import os
+import gspread
+from oauth2client.service_account import ServiceAccountCredentials
 
 app = Flask(__name__)
 
-# CSV SETUP
+
+# GOOGLE SHEETS SETUP
+
+SCOPE = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+CREDS = ServiceAccountCredentials.from_json_keyfile_name(
+    "google_credentials.json", SCOPE
+)
+
+gc = gspread.authorize(CREDS)
+
+# Open your Google Sheet
+SHEET = gc.open("HeavensRoar WhatsApp Logs").sheet1
+
+
+
+# CSV SETUP (DETAILED LOG)
 
 CSV_FILE = "whatsapp_responses.csv"
 
-# If file doesn't exist, create with headers
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -23,42 +43,63 @@ if not os.path.exists(CSV_FILE):
             "status"
         ])
 
-# ROOT
+
+# CLEAN CSV SETUP (MATCHES GOOGLE SHEET)
+
+CLEAN_CSV = "whatsapp_clean_log.csv"
+
+if not os.path.exists(CLEAN_CSV):
+    with open(CLEAN_CSV, "w", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            "timestamp",
+            "date",
+            "from_number",
+            "message",
+            "status"
+        ])
+
+
+# ROUTES
 
 @app.route("/", methods=["GET"])
 def home():
     return "Heaven's Roar WhatsApp Webhook is running!", 200
 
 
-# HEALTH CHECK
-
 @app.route("/healthz", methods=["GET"])
 def health_check():
     return "OK", 200
 
-# TWILIO WHATSAPP WEBHOOK
+
+# MAIN WHATSAPP WEBHOOK
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
+
+    # ---- Core data ----
     timestamp = datetime.utcnow().isoformat()
+    date_only = datetime.utcnow().strftime("%Y-%m-%d")
 
     incoming_msg = request.values.get("Body", "").strip()
     from_number = request.values.get("From", "")
     device_info = request.headers.get("User-Agent", "Unknown Device")
 
-    message_upper = incoming_msg.upper()
+    msg_upper = incoming_msg.upper()
 
-    # STOP / UNSUBSCRIBE handling
-    if message_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
+    # ---- STOP / UNSUBSCRIBE logic ----
+    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
         command_type = "STOP"
         status = "UNSUBSCRIBED"
-        reply = "⚠️ You have been unsubscribed from further notifications."
+        reply_text = "You have been unsubscribed from further notifications."
     else:
         command_type = "MESSAGE"
         status = "ACTIVE"
-        reply = f"📩 Message received: {incoming_msg}"
+        reply_text = f"📩 Message received: {incoming_msg}"
 
-    # Save to CSV
+  
+    # SAVE TO DETAILED CSV
+
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -70,14 +111,46 @@ def whatsapp_webhook():
             status
         ])
 
-    # Send WhatsApp reply
-    twilio_resp = MessagingResponse()
-    twilio_resp.message(reply)
 
-    return str(twilio_resp)
+    # SAVE TO CLEAN CSV
+
+    with open(CLEAN_CSV, "a", newline="", encoding="utf-8") as f:
+        writer = csv.writer(f)
+        writer.writerow([
+            timestamp,
+            date_only,
+            from_number,
+            incoming_msg,
+            status
+        ])
 
 
-# RUN (REQUIRED FOR RENDER DEPLOY)
+    # SAVE TO GOOGLE SHEETS
+
+    try:
+        SHEET.append_row([
+            timestamp,
+            date_only,
+            from_number,
+            incoming_msg,
+            status
+        ])
+        print("✔ Logged to Google Sheets:", incoming_msg)
+
+    except Exception as e:
+        print("❌ GOOGLE SHEETS ERROR:", e)
+
+
+    # SEND WHATSAPP REPLY
+
+    resp = MessagingResponse()
+    resp.message(reply_text)
+
+    return str(resp)
+
+
+# RENDER RUN
+
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
