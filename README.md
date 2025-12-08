@@ -1,7 +1,8 @@
 # Heaven’s Roar WhatsApp Webhook
 
-This project is a **Flask-based WhatsApp webhook** built using **Twilio’s WhatsApp API**.  
-It receives incoming WhatsApp messages, automatically replies, and **logs all responses into a CSV file** with timestamp, sender number, message body, and status.
+Automated WhatsApp Message Logging to Google Sheets (Twilio + Render + Google Cloud)
+
+This project is a fully automated WhatsApp webhook system that receives incoming WhatsApp messages through Twilio and logs every message into a Google Sheet in real time. The webhook is deployed on Render.com, runs 24/7 without needing your laptop to be on, and uses a Google Service Account to write data into Google Sheets.
 
 The project is **fully deployed on Render (production-ready)** and monitored using a `/healthz` endpoint.
 
@@ -24,27 +25,41 @@ The project is **fully deployed on Render (production-ready)** and monitored usi
 
 ---
 
-## Live Deployment
+## Prerequisites
 
-deployed and running here: https://heavensroar-jfm-webhook.onrender.com
+1. Python 3.10.x
+2. Twilio Account with WhatsApp Sender
+   * TWILIO_ACCOUNT_SID
+   * TWILIO_AUTH_TOKEN
+   * TWILIO_WHATSAPP_FROM
+3. Google Cloud Project with APIs Enabled
+   * Google Drive API
+   * Google Sheets API
+4. Google Service Account
+   * Create a service account
+   * Create a JSON key
+   * Download the JSON file
+   * Share your Google Sheet with: <service-account-name>@<project-id>.iam.gserviceaccount.com
+5. Create the Google Sheet
+   * Sheet name
 
+## Setup (Local + Render)
 
+1. Install Dependencies
+   * pip install -r requirements.txt
+2. Create a .env
+   * TWILIO_ACCOUNT_SID=xxxxxxxx
+   * TWILIO_AUTH_TOKEN=xxxxxxxx
+   * TWILIO_WHATSAPP_FROM=whatsapp:+1xxxxxxxxxx
+   * PORT=5000
+3. Load Google Credentials (Local Development)
 
-## Github Repo: 
-git clone https://github.com/sunilganta-dev/heavensroar
+## Deploy to Render
+1. Create a New Web Service
+2. Add Secret File
+3. Set Python Version
+4. Build and Start Commands
 
-## Create virtual environment:
-
-python -m venv venv
-
-source venv/bin/activate
-
-pip install -r requirements.txt
-
-pip install flask twilio gspread oauth2client gunicorn
-
-## Install dependencies:
-pip install -r requirements.txt
-
-## Run the webhook locally:
-python webhook.py
+## Webhook URL
+   * After deployment, Render gives a URL. 
+   * Go to: Twilio Console → Messaging → Senders
