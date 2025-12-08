@@ -6,9 +6,11 @@ import os
 
 app = Flask(__name__)
 
+# CSV SETUP
+
 CSV_FILE = "whatsapp_responses.csv"
 
-#CSV file exists with headers
+# If file doesn't exist, create with headers
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
@@ -21,13 +23,20 @@ if not os.path.exists(CSV_FILE):
             "status"
         ])
 
+# ROOT
+
 @app.route("/", methods=["GET"])
 def home():
-    return "Heaven's Roar Webhook is running!", 200
+    return "Heaven's Roar WhatsApp Webhook is running!", 200
+
+
+# HEALTH CHECK
 
 @app.route("/healthz", methods=["GET"])
 def health_check():
     return "OK", 200
+
+# TWILIO WHATSAPP WEBHOOK
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
@@ -35,21 +44,21 @@ def whatsapp_webhook():
 
     incoming_msg = request.values.get("Body", "").strip()
     from_number = request.values.get("From", "")
-    device_info = request.headers.get("User-Agent", "Unknown")
+    device_info = request.headers.get("User-Agent", "Unknown Device")
 
     message_upper = incoming_msg.upper()
 
-    # ✅ Detect STOP / UNSUBSCRIBE
+    # STOP / UNSUBSCRIBE handling
     if message_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
         command_type = "STOP"
         status = "UNSUBSCRIBED"
-        reply = "✅ You have been unsubscribed successfully."
+        reply = "⚠️ You have been unsubscribed from further notifications."
     else:
         command_type = "MESSAGE"
         status = "ACTIVE"
-        reply = f"✅ Message received: {incoming_msg}"
+        reply = f"📩 Message received: {incoming_msg}"
 
-    # ✅ Save everything to CSV
+    # Save to CSV
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow([
@@ -61,15 +70,14 @@ def whatsapp_webhook():
             status
         ])
 
-    resp = MessagingResponse()
-    resp.message(reply)
+    # Send WhatsApp reply
+    twilio_resp = MessagingResponse()
+    twilio_resp.message(reply)
 
-    return str(resp)
+    return str(twilio_resp)
 
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
 
-    
+# RUN (REQUIRED FOR RENDER DEPLOY)
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)
