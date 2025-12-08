@@ -39,6 +39,8 @@ python -m venv venv
 
 source venv/bin/activate
 
+pip install -r requirements.txt
+
 pip install flask twilio gspread oauth2client gunicorn
 
 ## Install dependencies:
