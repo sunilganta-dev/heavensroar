@@ -9,16 +9,14 @@ load_dotenv()
 account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-content_sid = "HX78303b0a8e75f75ffdd8b725fd2dc10f"
+content_sid = "HX246fe7c808a4c90234a7f988ea521456"
 
 client = Client(account_sid, auth_token)
 
 print("🔐 Using SID:", account_sid)
 print("📤 Using FROM:", whatsapp_from)
 
-# =============================
 # SAVE RESULTS HERE
-# =============================
 
 results_file = "send_results.csv"
 with open(results_file, "w", newline="") as f:
@@ -52,9 +50,7 @@ with open("contacts.csv", "r", encoding="latin-1") as f:
 
 print(f"📌 Found {len(rows)} contacts")
 
-# =============================
 # SEND + DELIVERY CHECKING
-# =============================
 
 for row in rows:
     name = row["Name"].strip()

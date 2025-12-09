@@ -26,8 +26,6 @@ gc = gspread.authorize(CREDS)
 SHEET = gc.open("HeavensRoar WhatsApp Logs").sheet1
 
 # CSV BACKUP SETUP
-
-
 CSV_FILE = "whatsapp_responses.csv"
 CLEAN_CSV = "whatsapp_clean_log.csv"
 
@@ -56,7 +54,6 @@ if not os.path.exists(CLEAN_CSV):
         ])
 
 # ROUTES
-
 @app.route("/", methods=["GET"])
 def home():
     return "Heaven's Roar WhatsApp Webhook is running!", 200
@@ -96,7 +93,6 @@ def whatsapp_webhook():
 
 
     # SAVE TO DETAILED CSV
-
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
             timestamp,
@@ -107,9 +103,7 @@ def whatsapp_webhook():
             status
         ])
 
-
     # SAVE CLEAN VERSION (for analysis)
- 
     with open(CLEAN_CSV, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
             profile_name,
@@ -121,7 +115,6 @@ def whatsapp_webhook():
         ])
 
     # SAVE TO GOOGLE SHEETS
-
     try:
         SHEET.append_row([
             profile_name,
@@ -138,12 +131,10 @@ def whatsapp_webhook():
         print("❌ GOOGLE SHEETS ERROR:", e)
 
     # SEND WHATSAPP AUTO-REPLY
-
     resp = MessagingResponse()
     resp.message(reply_text)
 
     return str(resp)
-
 
 # RENDER RUN
 
