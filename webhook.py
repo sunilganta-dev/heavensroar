@@ -9,8 +9,6 @@ from oauth2client.service_account import ServiceAccountCredentials
 app = Flask(__name__)
 
 # GOOGLE SHEETS SETUP
-
-
 SCOPE = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive"
@@ -22,14 +20,40 @@ CREDS = ServiceAccountCredentials.from_json_keyfile_name(
 
 gc = gspread.authorize(CREDS)
 
-# OPEN GOOGLE SHEET
-SHEET = gc.open("HeavensRoar WhatsApp Logs").sheet1
+GOOGLE_SHEET_FILE = "HeavensRoar WhatsApp Logs"
+
+TEMPLATE_NAME = os.getenv("TEMPLATE_NAME", "ChristmasOutreach2025")
+
+# FUNCTION: Create/Get a Sheet Tab Dynamically
+def get_or_create_sheet(gc, template_name):
+    file = gc.open(GOOGLE_SHEET_FILE)
+
+    today = datetime.utcnow().strftime("%Y-%m-%d")
+    tab_name = f"{template_name} ({today})"
+
+    try:
+        worksheet = file.worksheet(tab_name)
+    except:
+        worksheet = file.add_worksheet(title=tab_name, rows=1000, cols=10)
+
+        worksheet.append_row([
+            "name",
+            "phone_number",
+            "message",
+            "date",
+            "time",
+            "status"
+        ])
+
+        print(f"🆕 Created new sheet tab: {tab_name}")
+
+    return worksheet
 
 # CSV BACKUP SETUP
 CSV_FILE = "whatsapp_responses.csv"
 CLEAN_CSV = "whatsapp_clean_log.csv"
 
-# Detailed CSV
+# Detailed CSV initialization
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
@@ -41,7 +65,7 @@ if not os.path.exists(CSV_FILE):
             "status"
         ])
 
-# Clean CSV matching Google Sheet format
+# Clean CSV initialization
 if not os.path.exists(CLEAN_CSV):
     with open(CLEAN_CSV, "w", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
@@ -53,7 +77,9 @@ if not os.path.exists(CLEAN_CSV):
             "status"
         ])
 
+
 # ROUTES
+
 @app.route("/", methods=["GET"])
 def home():
     return "Heaven's Roar WhatsApp Webhook is running!", 200
@@ -77,7 +103,7 @@ def whatsapp_webhook():
     phone_number = request.values.get("From", "").replace("whatsapp:", "")
     device_info = request.headers.get("User-Agent", "Unknown Device")
 
-    profile_name = phone_number
+    profile_name = phone_number  # Optional: Map names later
 
     msg_upper = incoming_msg.upper()
 
@@ -91,7 +117,6 @@ def whatsapp_webhook():
         command_type = "MESSAGE"
         reply_text = f"📩 Message received: {incoming_msg}"
 
-
     # SAVE TO DETAILED CSV
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
@@ -103,7 +128,7 @@ def whatsapp_webhook():
             status
         ])
 
-    # SAVE CLEAN VERSION (for analysis)
+    # SAVE CLEAN CSV VERSION
     with open(CLEAN_CSV, "a", newline="", encoding="utf-8") as f:
         csv.writer(f).writerow([
             profile_name,
@@ -114,9 +139,12 @@ def whatsapp_webhook():
             status
         ])
 
-    # SAVE TO GOOGLE SHEETS
+
+    # SAVE TO GOOGLE SHEET TAB
     try:
-        SHEET.append_row([
+        worksheet = get_or_create_sheet(gc, TEMPLATE_NAME)
+
+        worksheet.append_row([
             profile_name,
             phone_number,
             incoming_msg,
@@ -125,19 +153,19 @@ def whatsapp_webhook():
             status
         ])
 
-        print("✔ Logged to Google Sheets:", incoming_msg)
+        print(f"✔ Logged to Google Sheets tab: {worksheet.title}")
 
     except Exception as e:
         print("❌ GOOGLE SHEETS ERROR:", e)
 
-    # SEND WHATSAPP AUTO-REPLY
+    # --- AUTO REPLY ---
     resp = MessagingResponse()
     resp.message(reply_text)
 
     return str(resp)
 
-# RENDER RUN
 
+# FLASK SERVER LAUNCH
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 10000))
     app.run(host="0.0.0.0", port=port)

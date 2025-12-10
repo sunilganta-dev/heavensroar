@@ -9,7 +9,7 @@ load_dotenv()
 account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-content_sid = "HX246fe7c808a4c90234a7f988ea521456"
+content_sid = "HXcb2e78e107879d490aa65bcc1917d1e1"
 
 client = Client(account_sid, auth_token)
 
@@ -51,7 +51,6 @@ with open("contacts.csv", "r", encoding="latin-1") as f:
 print(f"📌 Found {len(rows)} contacts")
 
 # SEND + DELIVERY CHECKING
-
 for row in rows:
     name = row["Name"].strip()
     phone = row["PhoneNumber"].strip()
@@ -62,8 +61,10 @@ for row in rows:
         msg = client.messages.create(
             from_=whatsapp_from,
             to=f"whatsapp:+{phone}",
-            content_sid=content_sid
+            content_sid=content_sid,
+            content_variables=f'{{"1":"{name}"}}'
         )
+
 
         # Wait for Twilio to update status
         time.sleep(3)
