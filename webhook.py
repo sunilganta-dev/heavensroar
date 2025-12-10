@@ -21,8 +21,8 @@ CREDS = ServiceAccountCredentials.from_json_keyfile_name(
 gc = gspread.authorize(CREDS)
 
 GOOGLE_SHEET_FILE = "HeavensRoar WhatsApp Logs"
-
 TEMPLATE_NAME = os.getenv("TEMPLATE_NAME", "ChristmasOutreach2025")
+
 
 # FUNCTION: Create/Get a Sheet Tab Dynamically
 def get_or_create_sheet(gc, template_name):
@@ -48,6 +48,7 @@ def get_or_create_sheet(gc, template_name):
         print(f"🆕 Created new sheet tab: {tab_name}")
 
     return worksheet
+
 
 # CSV BACKUP SETUP
 CSV_FILE = "whatsapp_responses.csv"
@@ -79,7 +80,6 @@ if not os.path.exists(CLEAN_CSV):
 
 
 # ROUTES
-
 @app.route("/", methods=["GET"])
 def home():
     return "Heaven's Roar WhatsApp Webhook is running!", 200
@@ -88,7 +88,6 @@ def home():
 @app.route("/healthz", methods=["GET"])
 def health_check():
     return "OK", 200
-
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
@@ -103,7 +102,12 @@ def whatsapp_webhook():
     phone_number = request.values.get("From", "").replace("whatsapp:", "")
     device_info = request.headers.get("User-Agent", "Unknown Device")
 
-    profile_name = phone_number  # Optional: Map names later
+    # Get profile name from WhatsApp
+    profile_name = request.values.get("ProfileName", "").strip()
+
+    # Fallback to phone number if no profile name
+    if not profile_name:
+        profile_name = phone_number
 
     msg_upper = incoming_msg.upper()
 
@@ -138,7 +142,6 @@ def whatsapp_webhook():
             time_only,
             status
         ])
-
 
     # SAVE TO GOOGLE SHEET TAB
     try:
