@@ -9,7 +9,7 @@ load_dotenv()
 account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-content_sid = "HXcb2e78e107879d490aa65bcc1917d1e1"
+content_sid = "HX17d9af9b069487999cbdc697e496de6b"
 
 client = Client(account_sid, auth_token)
 
