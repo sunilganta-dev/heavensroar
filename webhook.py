@@ -20,17 +20,23 @@ CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
 SHEET_NAME = "HeavensRoar WhatsApp Logs"
 TAB_NAME = os.getenv("TEMPLATE_NAME", "EasterOutreach2025")
 
-creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
-gc = gspread.authorize(creds)
-spreadsheet = gc.open(SHEET_NAME)
+# Lazy-loaded sheet — connected on first request, not at startup
+_sheet = None
 
-# Get or create the tab
-existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
-if TAB_NAME not in existing_tabs:
-    sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=1000, cols=6)
-    sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
-else:
-    sheet = spreadsheet.worksheet(TAB_NAME)
+def get_sheet():
+    global _sheet
+    if _sheet is not None:
+        return _sheet
+    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+    gc = gspread.authorize(creds)
+    spreadsheet = gc.open(SHEET_NAME)
+    existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+    if TAB_NAME not in existing_tabs:
+        _sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=1000, cols=6)
+        _sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
+    else:
+        _sheet = spreadsheet.worksheet(TAB_NAME)
+    return _sheet
 
 # CSV SETUP
 
@@ -115,7 +121,7 @@ def whatsapp_webhook():
         ])
 
     try:
-        sheet.append_row([
+        get_sheet().append_row([
             profile_name, phone_number, incoming_msg, date_only, time_only, status
         ])
     except Exception as e:
