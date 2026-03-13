@@ -1,6 +1,6 @@
 from flask import Flask, request
 from twilio.twiml.messaging_response import MessagingResponse
-from datetime import datetime
+from datetime import datetime, timezone
 import csv
 import os
 
@@ -13,12 +13,21 @@ app = Flask(__name__)
 
 SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
-CREDS_FILE = "google_credentials.json"  # Must exist in project root
-SHEET_NAME = "HeavensRoar WhatsApp Logs"  # Your sheet name
+CREDS_FILE = "google_credentials.json"
+SHEET_NAME = "HeavensRoar WhatsApp Logs"
+TAB_NAME = "EasterOutreach2025"
 
 creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
 client = gspread.authorize(creds)
-sheet = client.open(SHEET_NAME).sheet1
+spreadsheet = client.open(SHEET_NAME)
+
+# Get or create the EasterOutreach2025 tab
+existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+if TAB_NAME not in existing_tabs:
+    sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=1000, cols=6)
+    sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
+else:
+    sheet = spreadsheet.worksheet(TAB_NAME)
 
 # LOCAL CSV BACKUP FILE
 
@@ -49,8 +58,8 @@ def health_check():
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
-    timestamp = datetime.utcnow().isoformat()
-    date_today = datetime.utcnow().strftime("%Y-%m-%d")
+    timestamp = datetime.now(timezone.utc).isoformat()
+    date_today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
 
     incoming_msg = request.values.get("Body", "").strip()
     from_number = request.values.get("From", "")
@@ -68,10 +77,11 @@ def whatsapp_webhook():
     # SAVE TO GOOGLE SHEET
 
     sheet.append_row([
-        timestamp,
-        date_today,
+        from_number,
         from_number,
         incoming_msg,
+        date_today,
+        datetime.now(timezone.utc).strftime("%H:%M:%S"),
         status
     ])
 
