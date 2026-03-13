@@ -109,7 +109,8 @@ for row in filtered_rows:
         msg = client.messages.create(
             from_=whatsapp_from,
             to=f"whatsapp:+{phone}",
-            content_sid=content_sid
+            content_sid=content_sid,
+            content_variables=f'{{"1": "{name}"}}'
         )
 
         # Wait for Twilio to update status
