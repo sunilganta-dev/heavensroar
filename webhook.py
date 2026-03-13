@@ -11,17 +11,20 @@ app = Flask(__name__)
 
 # GOOGLE SHEETS CONFIG
 
-SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
 
-CREDS_FILE = "google_credentials.json"
+CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
 SHEET_NAME = "HeavensRoar WhatsApp Logs"
-TAB_NAME = "EasterOutreach2025"
+TAB_NAME = os.getenv("TEMPLATE_NAME", "EasterOutreach2025")
 
 creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
-client = gspread.authorize(creds)
-spreadsheet = client.open(SHEET_NAME)
+gc = gspread.authorize(creds)
+spreadsheet = gc.open(SHEET_NAME)
 
-# Get or create the EasterOutreach2025 tab
+# Get or create the tab
 existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 if TAB_NAME not in existing_tabs:
     sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=1000, cols=6)
@@ -29,20 +32,23 @@ if TAB_NAME not in existing_tabs:
 else:
     sheet = spreadsheet.worksheet(TAB_NAME)
 
-# LOCAL CSV BACKUP FILE
+# CSV SETUP
 
 CSV_FILE = "whatsapp_responses.csv"
+CLEAN_CSV = "whatsapp_clean_log.csv"
 
 if not os.path.exists(CSV_FILE):
     with open(CSV_FILE, "w", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            "timestamp",
-            "date",
-            "from_number",
-            "message",
-            "status"
+        csv.writer(f).writerow([
+            "timestamp", "from_number", "message_body", "command_type", "device", "status"
         ])
+
+if not os.path.exists(CLEAN_CSV):
+    with open(CLEAN_CSV, "w", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([
+            "name", "phone_number", "message", "date", "time", "status"
+        ])
+
 
 # ROUTES
 
@@ -58,51 +64,67 @@ def health_check():
 
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
-    timestamp = datetime.now(timezone.utc).isoformat()
-    date_today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    now = datetime.now(timezone.utc)
+    timestamp = now.isoformat()
+    date_only = now.strftime("%Y-%m-%d")
+    time_only = now.strftime("%H:%M:%S")
 
     incoming_msg = request.values.get("Body", "").strip()
-    from_number = request.values.get("From", "")
+    phone_number = request.values.get("From", "").replace("whatsapp:", "")
+    profile_name = request.values.get("ProfileName", "").strip() or phone_number
+    device_info = request.headers.get("User-Agent", "Unknown Device")
 
-    message_upper = incoming_msg.upper()
+    button_payload = request.values.get("ButtonPayload")
 
-    # Detect STOP
-    if message_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
+    msg_upper = incoming_msg.upper()
+
+    # DECISION LOGIC
+
+    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
         status = "UNSUBSCRIBED"
-        reply = "✅ You have been unsubscribed successfully."
+        command_type = "STOP"
+        reply_text = "You have been unsubscribed from further notifications."
+
+    elif button_payload == "Easter_celeb":
+        status = "RSVP_CONFIRMED"
+        command_type = "RSVP_YES"
+        reply_text = (
+            "Thank you for confirming! 🌸\n\n"
+            "*Easter Celebration*\n"
+            "📅 April 20\n"
+            "⏰ 6:00 PM\n"
+            "📍 951 West Side Ave, Jersey City, NJ, 07306\n\n"
+            "We look forward to seeing you!"
+        )
+
     else:
         status = "ACTIVE"
-        reply = f"✅ Message received: {incoming_msg}"
+        command_type = "MESSAGE"
+        reply_text = f"📩 Message received: {incoming_msg}"
 
-    # SAVE TO GOOGLE SHEET
-
-    sheet.append_row([
-        from_number,
-        from_number,
-        incoming_msg,
-        date_today,
-        datetime.now(timezone.utc).strftime("%H:%M:%S"),
-        status
-    ])
-
-
-    # SAVE TO LOCAL CSV BACKUP
+    # LOGGING
 
     with open(CSV_FILE, "a", newline="", encoding="utf-8") as f:
-        writer = csv.writer(f)
-        writer.writerow([
-            timestamp,
-            date_today,
-            from_number,
-            incoming_msg,
-            status
+        csv.writer(f).writerow([
+            timestamp, phone_number, incoming_msg, command_type, device_info, status
         ])
 
-    # SEND REPLY TO USER
- 
-    resp = MessagingResponse()
-    resp.message(reply)
+    with open(CLEAN_CSV, "a", newline="", encoding="utf-8") as f:
+        csv.writer(f).writerow([
+            profile_name, phone_number, incoming_msg, date_only, time_only, status
+        ])
 
+    try:
+        sheet.append_row([
+            profile_name, phone_number, incoming_msg, date_only, time_only, status
+        ])
+    except Exception as e:
+        print("❌ GOOGLE SHEETS ERROR:", e)
+
+    # AUTO REPLY
+
+    resp = MessagingResponse()
+    resp.message(reply_text)
     return str(resp)
 
 
