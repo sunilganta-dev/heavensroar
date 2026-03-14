@@ -1,60 +1,47 @@
 import csv
 import os
+import json
+import time
 from twilio.rest import Client
 from dotenv import load_dotenv
-import time
-import gspread
-from google.oauth2.service_account import Credentials
 
 load_dotenv()
 
 account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-content_sid = "HXd67fd70d72c4e95c37c6119865206e9a"  # col_easter template
+content_sid = "HX11b30a572704eb8bf70c5fc8e3042ed2"
+
+if not account_sid or not auth_token or not whatsapp_from:
+    raise ValueError("Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_WHATSAPP_FROM in environment.")
 
 client = Client(account_sid, auth_token)
 
-print("🔐 Using SID:", account_sid)
-print("📤 Using FROM:", whatsapp_from)
+def clean_header(h: str) -> str:
+    return (
+        h.replace("\ufeff", "")
+         .replace("ï»¿", "")
+         .replace("ï»", "")
+         .replace("»¿", "")
+         .strip()
+    )
 
-# Load unsubscribed numbers from ALL sheets in Google Sheet
-print("\n📋 Loading unsubscribed list from Google Sheet (all tabs)...")
-SCOPES = [
-    "https://www.googleapis.com/auth/spreadsheets",
-    "https://www.googleapis.com/auth/drive"
-]
-creds = Credentials.from_service_account_file("google_credentials.json", scopes=SCOPES)
-gs_client = gspread.authorize(creds)
-spreadsheet = gs_client.open_by_key("1nXTpDZc0YfmsbgfUSuYKanEcura_j8L3-xueGArRWXk")
+def normalize_phone(phone: str) -> str:
+    phone = phone.strip().replace(" ", "").replace("-", "")
+    if phone.startswith("whatsapp:"):
+        phone = phone[len("whatsapp:"):]
+    if not phone.startswith("+"):
+        phone = "+" + phone
+    return f"whatsapp:{phone}"
 
-unsubscribed = set()
-for ws in spreadsheet.worksheets():
-    all_rows = ws.get_all_values()
-    if not all_rows:
-        continue
-    # Find header row(s) and process data
-    for i, row in enumerate(all_rows):
-        if row and row[0].lower() in ("name", "phone_number"):
-            headers = [h.lower() for h in row]
-            try:
-                phone_idx = headers.index("phone_number")
-                status_idx = headers.index("status")
-            except ValueError:
-                continue
-            for data_row in all_rows[i+1:]:
-                if len(data_row) > max(phone_idx, status_idx):
-                    if data_row[status_idx].upper() == "UNSUBSCRIBED":
-                        # Strip leading + if present
-                        phone = data_row[phone_idx].strip().lstrip("+")
-                        if phone:
-                            unsubscribed.add(phone)
-
-print(f"🚫 Found {len(unsubscribed)} unsubscribed numbers across all sheets: {unsubscribed}")
-
-# Save Results
 results_file = "send_results.csv"
-with open(results_file, "w", newline="") as f:
+
+with open("contacts.csv", "r", encoding="latin-1") as f:
+    reader = csv.DictReader(f)
+    reader.fieldnames = [clean_header(n) for n in reader.fieldnames]
+    rows = list(reader)
+
+with open(results_file, "w", newline="", encoding="utf-8") as f:
     writer = csv.writer(f)
     writer.writerow([
         "Name",
@@ -65,78 +52,69 @@ with open(results_file, "w", newline="") as f:
         "Error_Message"
     ])
 
-print("\n📌 Loading contacts...")
-
-# Clean header function
-def clean_header(h):
-    return (
-        h.replace("\ufeff","")
-         .replace("ï»¿", "")
-         .replace("ï»", "")
-         .replace("»¿", "")
-         .strip()
-    )
-
-# Load CSV
-with open("contacts.csv", "r", encoding="latin-1") as f:
-    reader = csv.DictReader(f)
-    reader.fieldnames = [clean_header(n) for n in reader.fieldnames]
-    rows = list(reader)
-
-# Filter out unsubscribed contacts
-filtered_rows = []
-skipped = []
 for row in rows:
-    phone = row["PhoneNumber"].strip()
-    if phone in unsubscribed:
-        skipped.append(row["Name"].strip())
-    else:
-        filtered_rows.append(row)
-
-if skipped:
-    print(f"⏭️  Skipping {len(skipped)} unsubscribed contacts: {', '.join(skipped)}")
-
-print(f"📌 Sending to {len(filtered_rows)} contacts (out of {len(rows)} total)\n")
-
-# Send + Delivery Check
-for row in filtered_rows:
     name = row["Name"].strip()
     phone = row["PhoneNumber"].strip()
+    to_number = normalize_phone(phone)
 
-    print(f"\n📨 Sending to {name} ({phone}) ...")
+    payload = {
+        "from_": whatsapp_from,
+        "to": to_number,
+        "content_sid": content_sid,
+        "content_variables": json.dumps({
+            "1": name
+        })
+    }
+
+    print(f"Sending to {name} ({to_number})")
+    print("DEBUG PAYLOAD:", payload)
 
     try:
-        msg = client.messages.create(
-            from_=whatsapp_from,
-            to=f"whatsapp:+{phone}",
-            content_sid=content_sid,
-            content_variables=f'{{"1": "{name}"}}'
-        )
+        msg = client.messages.create(**payload)
+        print("Queued:", msg.sid)
 
-        # Wait for Twilio to update status
-        time.sleep(3)
-        msg_check = client.messages(msg.sid).fetch()
+        final_status = msg.status
+        final_error_code = ""
+        final_error_message = ""
 
-        status = msg_check.status
-        e_code = msg_check.error_code
-        e_msg = msg_check.error_message
+        for _ in range(8):
+            time.sleep(5)
+            fetched = client.messages(msg.sid).fetch()
+            final_status = fetched.status
+            final_error_code = fetched.error_code or ""
+            final_error_message = fetched.error_message or ""
 
-        print(f"➡️ Status: {status} | Error: {e_code}")
+            print(
+                "Status:", final_status,
+                "Error:", final_error_code,
+                "Message:", final_error_message
+            )
 
-        # Save result
-        with open(results_file, "a", newline="") as f:
+            if final_status in ["delivered", "sent", "failed", "undelivered"]:
+                break
+
+        with open(results_file, "a", newline="", encoding="utf-8") as f:
             writer = csv.writer(f)
             writer.writerow([
                 name,
                 phone,
                 msg.sid,
-                status,
-                e_code,
-                e_msg
+                final_status,
+                final_error_code,
+                final_error_message
             ])
 
     except Exception as e:
-        print("❌ Fatal Error:", e)
+        print(f"Fatal error for {name}: {e}")
+        with open(results_file, "a", newline="", encoding="utf-8") as f:
+            writer = csv.writer(f)
+            writer.writerow([
+                name,
+                phone,
+                "",
+                "fatal_error",
+                "",
+                str(e)
+            ])
 
-print("\n🎉 DONE — All messages processed.")
-print("📁 Results saved to send_results.csv")
+print(f"Done. Results saved to {results_file}")
