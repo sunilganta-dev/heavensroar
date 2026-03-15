@@ -30,6 +30,7 @@ SCOPES = [
 CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "").strip()
 SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
+BASE_URL = os.getenv("BASE_URL", "").strip().rstrip("/")
 
 # Fetch template name from Twilio
 print(f"🔍 Fetching template info for {content_sid}...")
@@ -105,10 +106,10 @@ for row in rows:
         "from_": whatsapp_from,
         "to": to_number,
         "content_sid": content_sid,
-        "content_variables": json.dumps({
-            "1": name
-        })
+        "content_variables": json.dumps({"1": name}),
     }
+    if BASE_URL:
+        payload["status_callback"] = f"{BASE_URL}/status-callback"
 
     print(f"Sending to {name} ({to_number})")
     print("DEBUG PAYLOAD:", payload)

@@ -28,6 +28,7 @@ SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
 TAB_NAME_OVERRIDE = os.getenv("TEMPLATE_NAME", "").strip()
 
 _sheet = None
+_status_sheet = None
 
 def get_sheet():
     global _sheet
@@ -58,6 +59,26 @@ def get_sheet():
         print(f"✅ Connected to tab: {tab_name}")
 
     return _sheet
+
+
+def get_status_sheet():
+    global _status_sheet
+    if _status_sheet is not None:
+        return _status_sheet
+
+    gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
+    spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+    existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+
+    if "ReadReceipts" not in existing_tabs:
+        _status_sheet = spreadsheet.add_worksheet(title="ReadReceipts", rows=5000, cols=5)
+        _status_sheet.append_row(["message_sid", "to_number", "status", "timestamp", "campaign"])
+        print("✅ Created ReadReceipts tab")
+    else:
+        _status_sheet = spreadsheet.worksheet("ReadReceipts")
+        print("✅ Connected to ReadReceipts tab")
+
+    return _status_sheet
 
 
 # =========================
@@ -101,6 +122,36 @@ def add_unsubscribed_number(phone_number):
 # =========================
 # ROUTES
 # =========================
+
+@app.route("/status-callback", methods=["POST"])
+def status_callback():
+    message_sid = request.values.get("MessageSid", "")
+    message_status = request.values.get("MessageStatus", "")
+    to_number = request.values.get("To", "").replace("whatsapp:", "").strip()
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    print(f"📬 Status update: {to_number} → {message_status} ({message_sid})")
+
+    # Only log meaningful statuses
+    if message_status in ["delivered", "read", "failed", "undelivered"]:
+        try:
+            # Read active campaign from Config tab for context
+            gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
+            spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+            try:
+                campaign = spreadsheet.worksheet("Config").acell("B1").value or ""
+            except Exception:
+                campaign = ""
+
+            get_status_sheet().append_row([
+                message_sid, to_number, message_status, timestamp, campaign
+            ])
+            print(f"✅ Logged status: {to_number} | {message_status}")
+        except Exception as e:
+            print(f"❌ Status log error: {e}")
+
+    return "", 204
+
 
 @app.route("/", methods=["GET"])
 def home():
