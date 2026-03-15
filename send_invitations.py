@@ -97,8 +97,8 @@ with open(results_file, "w", newline="", encoding="utf-8") as f:
     ])
 
 for row in rows:
-    name = row["Name"].strip()
-    phone = row["PhoneNumber"].strip()
+    name = row["Name"].strip() or "Friend"
+    phone = row.get("PhoneNumber", row.get("Phone", "")).strip()
     to_number = normalize_phone(phone)
 
     payload = {
