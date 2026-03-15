@@ -58,7 +58,7 @@ if "Config" not in existing_tabs:
     print(f"✅ Created Config tab with active_campaign = {template_name}")
 else:
     config_sheet = spreadsheet.worksheet("Config")
-    config_sheet.update("B1", template_name)
+    config_sheet.update_cell(1, 2, template_name)
     print(f"✅ Updated Config tab: active_campaign = {template_name}")
 
 def clean_header(h: str) -> str:
