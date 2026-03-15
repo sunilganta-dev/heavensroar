@@ -4,18 +4,62 @@ import json
 import time
 from twilio.rest import Client
 from dotenv import load_dotenv
+import gspread
+from google.oauth2.service_account import Credentials
 
 load_dotenv()
 
 account_sid = os.getenv("TWILIO_ACCOUNT_SID")
 auth_token = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
-content_sid = "HX11b30a572704eb8bf70c5fc8e3042ed2"
+content_sid = "HXd8c5536a0bd9d414cebbc80ce933df40"
 
 if not account_sid or not auth_token or not whatsapp_from:
     raise ValueError("Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_WHATSAPP_FROM in environment.")
 
 client = Client(account_sid, auth_token)
+
+# =========================
+# GOOGLE SHEETS SETUP
+# =========================
+
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
+SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "").strip()
+SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
+
+# Fetch template name from Twilio
+print(f"🔍 Fetching template info for {content_sid}...")
+template = client.content.v1.contents(content_sid).fetch()
+template_name = template.friendly_name
+print(f"📋 Template name: {template_name}")
+
+# Connect to Google Sheets
+creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+gc = gspread.authorize(creds)
+spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+
+# Create campaign tab if needed
+if template_name not in existing_tabs:
+    campaign_sheet = spreadsheet.add_worksheet(title=template_name, rows=1000, cols=6)
+    campaign_sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
+    print(f"✅ Created new sheet tab: {template_name}")
+else:
+    print(f"✅ Sheet tab already exists: {template_name}")
+
+# Update Config tab so webhook knows the active campaign
+if "Config" not in existing_tabs:
+    config_sheet = spreadsheet.add_worksheet(title="Config", rows=10, cols=2)
+    config_sheet.update("A1:B1", [["active_campaign", template_name]])
+    print(f"✅ Created Config tab with active_campaign = {template_name}")
+else:
+    config_sheet = spreadsheet.worksheet("Config")
+    config_sheet.update("B1", template_name)
+    print(f"✅ Updated Config tab: active_campaign = {template_name}")
 
 def clean_header(h: str) -> str:
     return (

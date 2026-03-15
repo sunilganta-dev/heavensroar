@@ -24,8 +24,8 @@ CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "").strip()
 SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
 
-# IMPORTANT: make this match your actual tab
-TAB_NAME = os.getenv("TEMPLATE_NAME", "EasterOutreach2026")
+# Optional override — if set, always use this tab; otherwise read from Config tab
+TAB_NAME_OVERRIDE = os.getenv("TEMPLATE_NAME", "").strip()
 
 _sheet = None
 
@@ -34,23 +34,28 @@ def get_sheet():
     if _sheet is not None:
         return _sheet
 
-    creds = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
-    gc = gspread.authorize(creds)
-
-    if SHEET_ID:
-        spreadsheet = gc.open_by_key(SHEET_ID)
-    else:
-        spreadsheet = gc.open(SHEET_NAME)
-
+    gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
+    spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
     existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 
-    if TAB_NAME not in existing_tabs:
-        _sheet = spreadsheet.add_worksheet(title=TAB_NAME, rows=1000, cols=6)
+    # Resolve active campaign tab name
+    tab_name = TAB_NAME_OVERRIDE
+    if not tab_name:
+        try:
+            config = spreadsheet.worksheet("Config")
+            tab_name = (config.acell("B1").value or "").strip()
+            print(f"📋 Active campaign from Config tab: {tab_name}")
+        except Exception as e:
+            print(f"⚠️ Could not read Config tab: {e}")
+            tab_name = "DefaultCampaign"
+
+    if tab_name not in existing_tabs:
+        _sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
         _sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
-        print(f"✅ Created new tab: {TAB_NAME}")
+        print(f"✅ Created new tab: {tab_name}")
     else:
-        _sheet = spreadsheet.worksheet(TAB_NAME)
-        print(f"✅ Connected to tab: {TAB_NAME}")
+        _sheet = spreadsheet.worksheet(tab_name)
+        print(f"✅ Connected to tab: {tab_name}")
 
     return _sheet
 
@@ -126,10 +131,17 @@ def whatsapp_webhook():
     # DECISION LOGIC
     # =========================
 
-    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END"]:
+    UPDATE_KEYWORDS = ["update", "change", "edit", "rename", "correct", "fix my name", "wrong name"]
+    DETAILS_KEYWORDS = ["details", "detail", "when", "where", "what time", "location", "address", "show", "play", "event", "info", "information", "ticket", "tickets", "schedule"]
+
+    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT OUT", "HELP"]:
         status = "UNSUBSCRIBED"
         command_type = "STOP"
-        reply_text = "You have been unsubscribed from further notifications."
+        reply_text = (
+            "You have successfully unsubscribed from Heaven's Roar updates. "
+            "We're sorry to see you go! 🙏\n\n"
+            "If you ever change your mind, feel free to reach out to us directly."
+        )
         add_unsubscribed_number(phone_number)
 
     elif button_payload == "Easter_celeb":
@@ -144,10 +156,33 @@ def whatsapp_webhook():
             "We look forward to seeing you!"
         )
 
+    elif any(kw in incoming_msg.lower() for kw in UPDATE_KEYWORDS):
+        status = "UPDATE_REQUEST"
+        command_type = "UPDATE"
+        reply_text = (
+            "Thank you for letting us know! 😊\n\n"
+            "We'll update our records shortly. "
+            "If you need to make any specific changes, please reply with your updated details and we'll take care of it."
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in DETAILS_KEYWORDS):
+        status = "DETAILS_REQUESTED"
+        command_type = "DETAILS"
+        reply_text = (
+            "Thank you for your interest in Heaven's Roar! 🎭\n\n"
+            "Full event details will be shared in the next phase. "
+            "Stay tuned — we'll be in touch soon with everything you need to know! 🌟"
+        )
+
     else:
         status = "ACTIVE"
         command_type = "MESSAGE"
-        reply_text = f"📩 Message received: {incoming_msg}"
+        reply_text = (
+            "Thank you for your message! 🙏\n\n"
+            "Our team will be in touch. "
+            "If you have questions about the event, reply *details*. "
+            "To unsubscribe, reply *STOP*."
+        )
 
     # =========================
     # LOGGING
