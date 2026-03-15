@@ -79,7 +79,9 @@ def normalize_phone(phone: str) -> str:
         phone = "+" + phone
     return f"whatsapp:{phone}"
 
-results_file = "send_results.csv"
+from datetime import datetime
+results_file = f"send_results_{template_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+print(f"📄 Results will be saved to: {results_file}")
 
 with open("contacts.csv", "r", encoding="latin-1") as f:
     reader = csv.DictReader(f)
