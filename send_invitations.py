@@ -52,16 +52,6 @@ if template_name not in existing_tabs:
 else:
     print(f"✅ Sheet tab already exists: {template_name}")
 
-# Update Config tab so webhook knows the active campaign
-if "Config" not in existing_tabs:
-    config_sheet = spreadsheet.add_worksheet(title="Config", rows=10, cols=2)
-    config_sheet.update("A1:B1", [["active_campaign", template_name]])
-    print(f"✅ Created Config tab with active_campaign = {template_name}")
-else:
-    config_sheet = spreadsheet.worksheet("Config")
-    config_sheet.update_cell(1, 2, template_name)
-    print(f"✅ Updated Config tab: active_campaign = {template_name}")
-
 def clean_header(h: str) -> str:
     return (
         h.replace("\ufeff", "")

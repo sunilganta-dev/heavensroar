@@ -24,7 +24,7 @@ CREDS_FILE = os.getenv("GOOGLE_CREDS_FILE", "google_credentials.json")
 SHEET_ID = os.getenv("GOOGLE_SHEET_ID", "").strip()
 SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
 
-# Optional override — if set, always use this tab; otherwise read from Config tab
+# Set TEMPLATE_NAME env var on Render to pin a specific tab; otherwise uses the latest campaign tab
 TAB_NAME_OVERRIDE = os.getenv("TEMPLATE_NAME", "").strip()
 
 _sheet = None
@@ -42,13 +42,10 @@ def get_sheet():
     # Resolve active campaign tab name
     tab_name = TAB_NAME_OVERRIDE
     if not tab_name:
-        try:
-            config = spreadsheet.worksheet("Config")
-            tab_name = (config.acell("B1").value or "").strip()
-            print(f"📋 Active campaign from Config tab: {tab_name}")
-        except Exception as e:
-            print(f"⚠️ Could not read Config tab: {e}")
-            tab_name = "DefaultCampaign"
+        system_tabs = {"ReadReceipts", "Config", "Sheet1"}
+        campaign_tabs = [ws.title for ws in spreadsheet.worksheets() if ws.title not in system_tabs]
+        tab_name = campaign_tabs[-1] if campaign_tabs else "DefaultCampaign"
+        print(f"📋 Auto-selected campaign tab: {tab_name}")
 
     if tab_name not in existing_tabs:
         _sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
@@ -135,16 +132,8 @@ def status_callback():
     # Only log meaningful statuses
     if message_status in ["delivered", "read", "failed", "undelivered"]:
         try:
-            # Read active campaign from Config tab for context
-            gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
-            spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
-            try:
-                campaign = spreadsheet.worksheet("Config").acell("B1").value or ""
-            except Exception:
-                campaign = ""
-
             get_status_sheet().append_row([
-                message_sid, to_number, message_status, timestamp, campaign
+                message_sid, to_number, message_status, timestamp, TAB_NAME_OVERRIDE or "auto"
             ])
             print(f"✅ Logged status: {to_number} | {message_status}")
         except Exception as e:
