@@ -27,35 +27,71 @@ SHEET_NAME = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
 # Set TEMPLATE_NAME env var on Render to pin a specific tab; otherwise uses the latest campaign tab
 TAB_NAME_OVERRIDE = os.getenv("TEMPLATE_NAME", "").strip()
 
+# Tabs that are permanent and must never be treated as campaign tabs
+SYSTEM_TABS = {
+    "Reply History", "ReadReceipts", "UnnamedContacts",
+    "Config", "Sheet1", "— Ready for next campaign —"
+}
+
 _sheet = None
 _status_sheet = None
+_history_sheet = None
+
+
+def get_spreadsheet():
+    gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
+    return gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+
 
 def get_sheet():
+    """Returns the latest campaign tab (for logging replies per campaign)."""
     global _sheet
     if _sheet is not None:
         return _sheet
 
-    gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
-    spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+    spreadsheet = get_spreadsheet()
     existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 
-    # Resolve active campaign tab name
     tab_name = TAB_NAME_OVERRIDE
     if not tab_name:
-        system_tabs = {"ReadReceipts", "Config", "Sheet1"}
-        campaign_tabs = [ws.title for ws in spreadsheet.worksheets() if ws.title not in system_tabs]
+        campaign_tabs = [ws.title for ws in spreadsheet.worksheets()
+                         if ws.title not in SYSTEM_TABS]
         tab_name = campaign_tabs[-1] if campaign_tabs else "DefaultCampaign"
         print(f"📋 Auto-selected campaign tab: {tab_name}")
 
     if tab_name not in existing_tabs:
         _sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
-        _sheet.append_row(["name", "phone_number", "message", "date", "time", "status"])
-        print(f"✅ Created new tab: {tab_name}")
+        _sheet.append_row(["Name", "Phone Number", "Message", "Date", "Time", "Status"])
+        _sheet.freeze(rows=1)
+        print(f"✅ Created new campaign tab: {tab_name}")
     else:
         _sheet = spreadsheet.worksheet(tab_name)
-        print(f"✅ Connected to tab: {tab_name}")
+        print(f"✅ Connected to campaign tab: {tab_name}")
 
     return _sheet
+
+
+def get_history_sheet():
+    """Returns the permanent Reply History tab — never deleted, logs every reply ever received."""
+    global _history_sheet
+    if _history_sheet is not None:
+        return _history_sheet
+
+    spreadsheet = get_spreadsheet()
+    existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+
+    if "Reply History" not in existing_tabs:
+        _history_sheet = spreadsheet.add_worksheet(title="Reply History", rows=5000, cols=6)
+        _history_sheet.append_row([
+            "Name / WhatsApp ID", "Phone Number", "Message", "Date", "Time (24hr)", "Type"
+        ])
+        _history_sheet.freeze(rows=1)
+        print("✅ Created permanent Reply History tab")
+    else:
+        _history_sheet = spreadsheet.worksheet("Reply History")
+        print("✅ Connected to Reply History tab")
+
+    return _history_sheet
 
 
 def get_status_sheet():
@@ -63,13 +99,13 @@ def get_status_sheet():
     if _status_sheet is not None:
         return _status_sheet
 
-    gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
-    spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+    spreadsheet = get_spreadsheet()
     existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 
     if "ReadReceipts" not in existing_tabs:
         _status_sheet = spreadsheet.add_worksheet(title="ReadReceipts", rows=5000, cols=5)
-        _status_sheet.append_row(["message_sid", "to_number", "status", "timestamp", "campaign"])
+        _status_sheet.append_row(["Message SID", "To Number", "Status", "Timestamp (24hr)", "Campaign"])
+        _status_sheet.freeze(rows=1)
         print("✅ Created ReadReceipts tab")
     else:
         _status_sheet = spreadsheet.worksheet("ReadReceipts")
@@ -152,6 +188,29 @@ def health_check():
     return "OK", 200
 
 
+def log_profile_name_to_sheet(phone_number, profile_name):
+    """Log WhatsApp display name for unnamed contacts to an UnnamedContacts tab."""
+    try:
+        gc = gspread.authorize(Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES))
+        spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+        existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
+
+        if "UnnamedContacts" not in existing_tabs:
+            tab = spreadsheet.add_worksheet(title="UnnamedContacts", rows=500, cols=3)
+            tab.append_row(["PhoneNumber", "WhatsAppName", "CapturedAt"])
+        else:
+            tab = spreadsheet.worksheet("UnnamedContacts")
+
+        # Avoid duplicates
+        records = tab.get_all_values()
+        existing_phones = {r[0] for r in records[1:]}
+        if phone_number not in existing_phones:
+            tab.append_row([phone_number, profile_name, datetime.now(timezone.utc).isoformat()])
+            print(f"📝 Captured profile name: {profile_name} ({phone_number})")
+    except Exception as e:
+        print(f"⚠️  Could not log profile name: {e}")
+
+
 @app.route("/whatsapp-webhook", methods=["POST"])
 def whatsapp_webhook():
     now = datetime.now(timezone.utc)
@@ -166,6 +225,23 @@ def whatsapp_webhook():
     button_payload = request.values.get("ButtonPayload", "").strip()
 
     msg_upper = incoming_msg.upper()
+
+    # ── Auto-capture WhatsApp display name for unnamed contacts ───────────────
+    # Load contacts to check if this number already has a name
+    try:
+        known_names = {}
+        with open("contacts.csv", "r", encoding="latin-1") as cf:
+            for row in csv.DictReader(cf):
+                p = row.get("Phone", row.get("PhoneNumber", "")).strip().lstrip("+")
+                known_names[p] = row.get("Name", "").strip()
+
+        clean_phone = phone_number.lstrip("+")
+        raw_profile = request.values.get("ProfileName", "").strip()
+
+        if raw_profile and known_names.get(clean_phone, "") == "":
+            log_profile_name_to_sheet(phone_number, raw_profile)
+    except Exception as e:
+        print(f"⚠️  Profile capture error: {e}")
 
     # =========================
     # DECISION LOGIC
@@ -189,10 +265,11 @@ def whatsapp_webhook():
         command_type = "RSVP_YES"
         reply_text = (
             "Thank you for confirming! 🌸\n\n"
-            "*Easter Celebration*\n"
-            "📅 April 20\n"
+            "*Cost of Love — A Powerful Easter Drama*\n"
+            "📅 March 28, 2026\n"
             "⏰ 6:00 PM\n"
-            "📍 951 West Side Ave, Jersey City, NJ 07306\n\n"
+            "📍 951 Westside Ave, Jersey City, NJ\n\n"
+            "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
             "We look forward to seeing you!"
         )
 
@@ -210,8 +287,12 @@ def whatsapp_webhook():
         command_type = "DETAILS"
         reply_text = (
             "Thank you for your interest in Heaven's Roar! 🎭\n\n"
-            "Full event details will be shared in the next phase. "
-            "Stay tuned — we'll be in touch soon with everything you need to know! 🌟"
+            "*Cost of Love — A Powerful Easter Drama*\n"
+            "📅 March 28, 2026\n"
+            "⏰ 6:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ\n\n"
+            "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
+            "We look forward to seeing you there! 🙏"
         )
 
     else:
@@ -220,8 +301,6 @@ def whatsapp_webhook():
         reply_text = (
             "Thank you for your message! 🙏\n\n"
             "Our team will be in touch. "
-            "If you have questions about the event, reply *details*. "
-            "To unsubscribe, reply *STOP*."
         )
 
     # =========================
@@ -238,13 +317,23 @@ def whatsapp_webhook():
             profile_name, phone_number, incoming_msg, date_only, time_only, status
         ])
 
+    # Log to current campaign tab
     try:
         get_sheet().append_row([
             profile_name, phone_number, incoming_msg, date_only, time_only, status
         ])
-        print(f"✅ Logged to Google Sheet: {profile_name} | {phone_number} | {status}")
+        print(f"✅ Logged to campaign tab: {profile_name} | {phone_number} | {status}")
     except Exception as e:
-        print("❌ GOOGLE SHEETS ERROR:", e)
+        print("❌ Campaign sheet error:", e)
+
+    # Log to permanent Reply History tab (never deleted)
+    try:
+        get_history_sheet().append_row([
+            profile_name, phone_number, incoming_msg, date_only, time_only, command_type
+        ])
+        print(f"📜 Logged to Reply History: {profile_name} | {command_type}")
+    except Exception as e:
+        print("❌ Reply History sheet error:", e)
 
     # =========================
     # AUTO REPLY
