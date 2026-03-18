@@ -1,65 +1,230 @@
-# Heaven’s Roar WhatsApp Webhook
+# Heaven's Roar — WhatsApp Campaign Automation
 
-Automated WhatsApp Message Logging to Google Sheets (Twilio + Render + Google Cloud)
-
-This project is a fully automated WhatsApp webhook system that receives incoming WhatsApp messages through Twilio and logs every message into a Google Sheet in real time. The webhook is deployed on Render.com, runs 24/7 without needing your laptop to be on, and uses a Google Service Account to write data into Google Sheets.
-
-The project is **fully deployed on Render (production-ready)** and monitored using a `/healthz` endpoint.
+> End-to-end WhatsApp outreach and RSVP automation platform built with **Twilio Content Templates**, **Meta WhatsApp Business API**, **Flask**, and **Google Sheets** — deployed on **Render**.
 
 ---
 
-## Features
+## Overview
 
-- Receives WhatsApp messages via Twilio
-- Auto-replies to every incoming message
-- Logs messages into a CSV file
-- Tracks:
-  - Timestamp
-  - Sender Number
-  - Message Body
-  - Message Status (received)
-- Supports STOP / UNSUBSCRIBE messages
-- Health monitoring endpoint (`/healthz`)
-- Deployed on Render using **Gunicorn**
-- Environment variable security using `.env`
+This system powers large-scale WhatsApp event campaigns for Heaven's Roar church events. It handles the full lifecycle — from sending personalized invitations to 500+ contacts, tracking delivery and read receipts in real time, capturing RSVP responses via interactive buttons, and logging everything to Google Sheets automatically.
+
+The architecture is split into two components:
+
+| Component | File | Purpose |
+|-----------|------|---------|
+| **Campaign Sender** | `send_invitations.py` | Bulk sends personalized WhatsApp messages using approved Twilio Content Templates |
+| **Webhook Server** | `webhook.py` | Receives incoming replies, status callbacks, and RSVP button events; logs everything to Google Sheets |
+
+---
+
+## How It Works
+
+### 1. Outbound Campaign (`send_invitations.py`)
+
+```
+contacts.csv → Twilio Content Template → WhatsApp (via Meta) → Recipient
+                                                ↓
+                                     Google Sheets (live log)
+                                     Local CSV results file
+```
+
+- Reads a CSV contact list (Name, Phone)
+- Sends each contact a **pre-approved Twilio Content Template** (required by Meta for WhatsApp Business messaging)
+- Personalizes messages using template variables (e.g., `{{1}}` → recipient's first name)
+- Polls Twilio API every 5 seconds (up to 40s) to capture the final delivery status per message
+- Logs each result live to a **timestamped Google Sheet tab** and a local CSV file
+- Status callbacks are sent to the deployed webhook for real-time read receipt tracking
+
+**Delivery statuses tracked:**
+
+| Icon | Status | Meaning |
+|------|--------|---------|
+| ✅ | `read` | Recipient opened the message |
+| 📬 | `delivered` | Message delivered to device |
+| 📤 | `sent` | Message accepted by WhatsApp network |
+| 📵 | `no whatsapp` | Number not registered on WhatsApp (error 63024) |
+| ⚠️ | `undelivered` | Delivery failed |
+| ❌ | `failed` | Message rejected |
+| 💀 | `error` | Fatal exception during send |
+
+---
+
+### 2. Webhook Server (`webhook.py`)
+
+```
+Recipient replies on WhatsApp
+        ↓
+    Twilio receives it
+        ↓
+    POST → /whatsapp-webhook  (Render)
+        ↓
+    Auto-reply sent back
+        ↓
+    Logged to Google Sheets (Campaign Tab + Reply History)
+```
+
+```
+Twilio status update (delivered / read / failed)
+        ↓
+    POST → /status-callback  (Render)
+        ↓
+    Logged to ReadReceipts tab in Google Sheets
+```
+
+**Incoming message routing:**
+
+| Trigger | Action | Sheet Status |
+|---------|--------|--------------|
+| RSVP button tap (`Easter_celeb`) | Sends event details confirmation | `RSVP_CONFIRMED` |
+| Keywords: `details`, `when`, `where`, `ticket` | Sends full event info | `DETAILS_REQUESTED` |
+| Keywords: `update`, `change`, `fix my name` | Acknowledges update request | `UPDATE_REQUEST` |
+| `STOP` / `UNSUBSCRIBE` / `CANCEL` | Unsubscribes and logs | `UNSUBSCRIBED` |
+| Any other message | Generic acknowledgement | `MESSAGE` |
+
+---
+
+## Google Sheets Structure
+
+Each campaign run automatically creates a new tab. Permanent system tabs are never deleted.
+
+| Tab | Type | Contents |
+|-----|------|----------|
+| `hr_easter_rsvp_2026 \| 2026-03-17 17:21` | Campaign (auto-created per run) | Name, Phone, Message SID, Status, Error Code, Sent At |
+| `Reply History` | Permanent | Every inbound reply ever received across all campaigns |
+| `ReadReceipts` | Permanent | Delivery and read status updates via webhook callbacks |
+| `UnnamedContacts` | Permanent | WhatsApp display names auto-captured for contacts without a saved name |
+| `Campaign History` | Permanent | Consolidated outbound history across all past campaigns |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| WhatsApp API | Meta WhatsApp Business API (via Twilio) |
+| Messaging | Twilio Content Templates (pre-approved by Meta) |
+| Backend | Python 3, Flask, Gunicorn |
+| Deployment | Render.com (always-on web service) |
+| Data Storage | Google Sheets API (gspread), Local CSV |
+| Auth | Google Service Account (JSON key), python-dotenv |
+| Status Tracking | Twilio Status Callbacks → Flask webhook |
 
 ---
 
 ## Prerequisites
 
-1. Python 3.10.x
-2. Twilio Account with WhatsApp Sender
-   * TWILIO_ACCOUNT_SID
-   * TWILIO_AUTH_TOKEN
-   * TWILIO_WHATSAPP_FROM
-3. Google Cloud Project with APIs Enabled
-   * Google Drive API
-   * Google Sheets API
-4. Google Service Account
-   * Create a service account
-   * Create a JSON key
-   * Download the JSON file
-   * Share your Google Sheet with: <service-account-name>@<project-id>.iam.gserviceaccount.com
-5. Create the Google Sheet
-   * Sheet name
+1. **Twilio Account** with WhatsApp Business sender approved by Meta
+   - `TWILIO_ACCOUNT_SID`
+   - `TWILIO_AUTH_TOKEN`
+   - `TWILIO_WHATSAPP_FROM` (e.g. `whatsapp:+16575306307`)
+   - At least one approved **Content Template SID**
 
-## Setup (Local + Render)
+2. **Meta WhatsApp Business** — templates must be approved before sending (Twilio submits on your behalf)
 
-1. Install Dependencies
-   * pip install -r requirements.txt
-2. Create a .env
-   * TWILIO_ACCOUNT_SID=xxxxxxxx
-   * TWILIO_AUTH_TOKEN=xxxxxxxx
-   * TWILIO_WHATSAPP_FROM=whatsapp:+1xxxxxxxxxx
-   * PORT=5000
-3. Load Google Credentials (Local Development)
+3. **Google Cloud Project** with APIs enabled:
+   - Google Sheets API
+   - Google Drive API
+
+4. **Google Service Account**
+   - Create a service account in Google Cloud Console
+   - Generate a JSON key → save as `google_credentials.json`
+   - Share your Google Sheet with the service account email
+
+5. **Render.com account** for webhook deployment
+
+---
+
+## Environment Variables
+
+```env
+TWILIO_ACCOUNT_SID=ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_AUTH_TOKEN=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+TWILIO_WHATSAPP_FROM=whatsapp:+1xxxxxxxxxx
+GOOGLE_SHEET_ID=                        # optional — falls back to sheet name
+GOOGLE_SHEET_NAME=HeavensRoar WhatsApp Logs
+GOOGLE_CREDS_FILE=google_credentials.json
+BASE_URL=https://your-service.onrender.com
+```
+
+---
+
+## Local Setup
+
+```bash
+git clone https://github.com/sunilganta-dev/heavensroar.git
+cd heavensroar
+
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+
+# Add your .env and google_credentials.json
+# Prepare contacts.csv with columns: Name, Phone
+
+python send_invitations.py
+```
+
+---
 
 ## Deploy to Render
-1. Create a New Web Service
-2. Add Secret File
-3. Set Python Version
-4. Build and Start Commands
 
-## Webhook URL
-   * After deployment, Render gives a URL. 
-   * Go to: Twilio Console → Messaging → Senders
+1. Push code to GitHub (contacts.csv is gitignored — never committed)
+2. Create a **New Web Service** on Render → connect your GitHub repo
+3. Set **Start Command**: `gunicorn webhook:app`
+4. Add all environment variables in Render dashboard
+5. Upload `google_credentials.json` as a **Secret File** at path `google_credentials.json`
+6. After deploy, copy your Render URL
+
+**Configure Twilio:**
+- Twilio Console → Messaging → Senders → your WhatsApp number
+- Set **"When a message comes in"**: `https://your-service.onrender.com/whatsapp-webhook`
+- Set **Status Callback URL** (in send script via `BASE_URL`): `https://your-service.onrender.com/status-callback`
+
+---
+
+## Running a Campaign
+
+```bash
+source venv/bin/activate
+python send_invitations.py
+```
+
+The script will:
+1. Fetch the template name from Twilio
+2. Create a new timestamped Google Sheet tab
+3. Send to all contacts in `contacts.csv` with live progress:
+   ```
+   [  1/565] Aarush                    12013095172  →  📬 delivered
+   [  2/565] Abhishek Karam            16602386689  →  📬 delivered
+   [  3/565] Abanoub Mikhaeil          15517271613  →  📵 no whatsapp  [err 63024]
+   ```
+4. Print a final summary on completion
+
+---
+
+## Contact List Management (`contacts.csv`)
+
+Format: `Name,Phone` (phone without `+`, 11-digit US numbers)
+
+Best practices maintained in this project:
+- Named contacts sorted A→Z, unnamed contacts at the end
+- Numbers with no WhatsApp (error 63024) removed after each campaign
+- STOP/unsubscribed contacts removed before next send
+- Names normalized to Title Case; abbreviations preserved (AD, MK, RKS)
+
+---
+
+## Health Check
+
+```
+GET https://your-service.onrender.com/healthz  →  200 OK
+GET https://your-service.onrender.com/         →  "Heaven's Roar Webhook is running!"
+```
+
+---
+
+## Security Notes
+
+- `contacts.csv` and `google_credentials.json` are in `.gitignore` — never pushed to GitHub
+- All secrets loaded via environment variables
+- Google Sheets access scoped to Sheets + Drive only
