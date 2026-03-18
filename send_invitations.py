@@ -121,7 +121,7 @@ def record(status, error_code=""):
 
 # ── Send loop ─────────────────────────────────────────────────────────────────
 for idx, row in enumerate(contacts, 1):
-    name  = row.get("Name", "").strip() or "there"
+    name  = row.get("Name", "").strip() or "There"
     phone = row.get("PhoneNumber", row.get("Phone", "")).strip()
     to_number = normalize_phone(phone)
 
