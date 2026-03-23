@@ -249,8 +249,9 @@ def whatsapp_webhook():
 
     UPDATE_KEYWORDS = ["update", "change", "edit", "rename", "correct", "fix my name", "wrong name"]
     DETAILS_KEYWORDS = ["details", "detail", "when", "where", "what time", "location", "address", "show", "play", "event", "info", "information", "ticket", "tickets", "schedule"]
+    TRANSPORT_KEYWORDS = ["transport", "transportation", "ride", "pickup", "pick up", "pick-up", "drop", "drop off", "dropoff", "bus", "car", "drive", "driving", "lift", "commute"]
 
-    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT OUT", "HELP"]:
+    if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT OUT"]:
         status = "UNSUBSCRIBED"
         command_type = "STOP"
         reply_text = (
@@ -259,6 +260,22 @@ def whatsapp_webhook():
             "If you ever change your mind, feel free to reach out to us directly."
         )
         add_unsubscribed_number(phone_number)
+
+    elif msg_upper == "HELP":
+        status = "HELP_REQUEST"
+        command_type = "HELP"
+        reply_text = (
+            "We're here to help! 😊\n\n"
+            "What is your question? For existing event or any general query, please go ahead and ask."
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in TRANSPORT_KEYWORDS):
+        status = "TRANSPORT_REQUEST"
+        command_type = "TRANSPORT"
+        reply_text = (
+            "We'd love to help with transportation! 🚗\n\n"
+            "Please share your full address and contact details and our team will get back to you shortly."
+        )
 
     elif button_payload == "Easter_celeb":
         status = "RSVP_CONFIRMED"

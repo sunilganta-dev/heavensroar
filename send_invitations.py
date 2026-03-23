@@ -2,11 +2,16 @@ import csv
 import os
 import json
 import time
+import argparse
 from datetime import datetime
 from twilio.rest import Client
 from dotenv import load_dotenv
 import gspread
 from google.oauth2.service_account import Credentials
+
+parser = argparse.ArgumentParser()
+parser.add_argument("--test", metavar="PHONE", help="Send only to this number (test mode)")
+args = parser.parse_args()
 
 load_dotenv()
 
@@ -16,7 +21,7 @@ whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
 BASE_URL      = os.getenv("BASE_URL", "").strip().rstrip("/")
 
 # ── New approved template ─────────────────────────────────────────────────────
-content_sid = "HX7026d3f0f066faa25dcb65231b33c82e"   # hr_easter_rsvp_2026
+content_sid = "HX04eaa2e6da8ab33cc438e41e1b440c48"   # play_update
 
 if not account_sid or not auth_token or not whatsapp_from:
     raise ValueError("Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_WHATSAPP_FROM in .env")
@@ -54,28 +59,36 @@ template      = client.content.v1.contents(content_sid).fetch()
 template_name = template.friendly_name
 print(f"📋 Template : {template_name}")
 
-creds       = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
-gc          = gspread.authorize(creds)
-spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
-
-# Always create a NEW tab for each run — name includes 24-hr timestamp
-run_ts     = datetime.now().strftime("%Y-%m-%d %H:%M")          # 24hr format
-tab_title  = f"{template_name} | {run_ts}"
-
-# Remove placeholder tab if it exists (never touch system tabs)
 SYSTEM_TABS = {"Reply History", "ReadReceipts", "UnnamedContacts"}
-for ws in spreadsheet.worksheets():
-    if ws.title == "— Ready for next campaign —":
-        spreadsheet.del_worksheet(ws)
 
-campaign_sheet = spreadsheet.add_worksheet(title=tab_title, rows=1000, cols=8)
-campaign_sheet.append_row([
-    "Name", "Phone Number", "Message SID",
-    "Status", "Error Code", "Error Message", "Sent At"
-])
-# Freeze header row
-campaign_sheet.freeze(rows=1)
-print(f"✅ Created Google Sheet tab: {tab_title}")
+if args.test:
+    campaign_sheet = None
+    print("🧪 TEST MODE — skipping Google Sheet logging")
+else:
+    creds       = Credentials.from_service_account_file(CREDS_FILE, scopes=SCOPES)
+    gc          = gspread.authorize(creds)
+    spreadsheet = gc.open_by_key(SHEET_ID) if SHEET_ID else gc.open(SHEET_NAME)
+
+    # Use a fixed tab name so all sends + responses stay in one place
+    tab_title = template_name  # e.g. "play_update"
+
+    # Remove placeholder tab if it exists
+    for ws in spreadsheet.worksheets():
+        if ws.title == "— Ready for next campaign —":
+            spreadsheet.del_worksheet(ws)
+
+    existing_titles = [ws.title for ws in spreadsheet.worksheets()]
+    if tab_title in existing_titles:
+        campaign_sheet = spreadsheet.worksheet(tab_title)
+        print(f"✅ Using existing Google Sheet tab: {tab_title}")
+    else:
+        campaign_sheet = spreadsheet.add_worksheet(title=tab_title, rows=1000, cols=8)
+        campaign_sheet.append_row([
+            "Name", "Phone Number", "Message SID",
+            "Status", "Error Code", "Error Message", "Sent At"
+        ])
+        campaign_sheet.freeze(rows=1)
+        print(f"✅ Created Google Sheet tab: {tab_title}")
 
 # ── Load contacts ─────────────────────────────────────────────────────────────
 def clean_header(h):
@@ -89,10 +102,14 @@ def normalize_phone(phone):
         phone = "+" + phone
     return f"whatsapp:{phone}"
 
-with open("contacts.csv", "r", encoding="latin-1") as f:
-    reader = csv.DictReader(f)
-    reader.fieldnames = [clean_header(n) for n in reader.fieldnames]
-    contacts = list(reader)
+if args.test:
+    contacts = [{"Name": "Sunil", "PhoneNumber": args.test}]
+    print(f"🧪 TEST MODE — sending only to {args.test}")
+else:
+    with open("contacts.csv", "r", encoding="latin-1") as f:
+        reader = csv.DictReader(f)
+        reader.fieldnames = [clean_header(n) for n in reader.fieldnames]
+        contacts = list(reader)
 
 total = len(contacts)
 
@@ -158,15 +175,16 @@ for idx, row in enumerate(contacts, 1):
         with open(results_file, "a", newline="", encoding="utf-8") as f:
             csv.writer(f).writerow([name, phone, msg.sid, final_status, final_error_code, final_error_message])
 
-        # Log to Google Sheet
-        try:
-            sent_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")   # 24hr
-            campaign_sheet.append_row([
-                name, phone, msg.sid,
-                final_status, final_error_code, final_error_message, sent_at
-            ])
-        except Exception as gs_err:
-            print(f"         ⚠️  Google Sheet log error: {gs_err}")
+        # Log to Google Sheet (skipped in test mode)
+        if campaign_sheet:
+            try:
+                sent_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")   # 24hr
+                campaign_sheet.append_row([
+                    name, phone, msg.sid,
+                    final_status, final_error_code, final_error_message, sent_at
+                ])
+            except Exception as gs_err:
+                print(f"         ⚠️  Google Sheet log error: {gs_err}")
 
     except Exception as e:
         record("fatal_error")
