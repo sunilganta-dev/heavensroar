@@ -21,7 +21,7 @@ whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
 BASE_URL      = os.getenv("BASE_URL", "").strip().rstrip("/")
 
 # ── New approved template ─────────────────────────────────────────────────────
-content_sid = "HX04eaa2e6da8ab33cc438e41e1b440c48"   # play_update
+content_sid = "HXa038c957fa181caffa072c782cb8e588"   # copy_sat_play
 
 if not account_sid or not auth_token or not whatsapp_from:
     raise ValueError("Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_WHATSAPP_FROM in .env")

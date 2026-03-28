@@ -44,7 +44,7 @@ def get_spreadsheet():
 
 
 def get_sheet():
-    """Returns the latest campaign tab (for logging replies per campaign)."""
+    """Returns the reply tab for the current campaign (named '<template> reply')."""
     global _sheet
     if _sheet is not None:
         return _sheet
@@ -52,21 +52,23 @@ def get_sheet():
     spreadsheet = get_spreadsheet()
     existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 
-    tab_name = TAB_NAME_OVERRIDE
-    if not tab_name:
+    base_tab = TAB_NAME_OVERRIDE
+    if not base_tab:
         campaign_tabs = [ws.title for ws in spreadsheet.worksheets()
-                         if ws.title not in SYSTEM_TABS]
-        tab_name = campaign_tabs[-1] if campaign_tabs else "DefaultCampaign"
-        print(f"📋 Auto-selected campaign tab: {tab_name}")
+                         if ws.title not in SYSTEM_TABS and not ws.title.endswith(" reply")]
+        base_tab = campaign_tabs[-1] if campaign_tabs else "DefaultCampaign"
+        print(f"📋 Auto-selected campaign tab: {base_tab}")
+
+    tab_name = f"{base_tab} reply"
 
     if tab_name not in existing_tabs:
         _sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
         _sheet.append_row(["Name", "Phone Number", "Message", "Date", "Time", "Status"])
         _sheet.freeze(rows=1)
-        print(f"✅ Created new campaign tab: {tab_name}")
+        print(f"✅ Created reply tab: {tab_name}")
     else:
         _sheet = spreadsheet.worksheet(tab_name)
-        print(f"✅ Connected to campaign tab: {tab_name}")
+        print(f"✅ Connected to reply tab: {tab_name}")
 
     return _sheet
 
