@@ -32,7 +32,7 @@ contacts.csv → Twilio Content Template → WhatsApp (via Meta) → Recipient
 - Sends each contact a **pre-approved Twilio Content Template** (required by Meta for WhatsApp Business messaging)
 - Personalizes messages using template variables (e.g., `{{1}}` → recipient's first name)
 - Polls Twilio API every 5 seconds (up to 40s) to capture the final delivery status per message
-- Logs each result live to a **timestamped Google Sheet tab** and a local CSV file
+- Logs each result live to a **Google Sheet tab** (named after the template) and a local CSV file
 - Status callbacks are sent to the deployed webhook for real-time read receipt tracking
 
 **Delivery statuses tracked:**
@@ -71,29 +71,13 @@ Twilio status update (delivered / read / failed)
     Logged to ReadReceipts tab in Google Sheets
 ```
 
-**Incoming message routing:**
-
-| Trigger | Action | Sheet Status |
-|---------|--------|--------------|
-| RSVP button tap (`Easter_celeb`) | Sends event details confirmation | `RSVP_CONFIRMED` |
-| Keywords: `details`, `when`, `where`, `ticket` | Sends full event info | `DETAILS_REQUESTED` |
-| Keywords: `update`, `change`, `fix my name` | Acknowledges update request | `UPDATE_REQUEST` |
-| `STOP` / `UNSUBSCRIBE` / `CANCEL` | Unsubscribes and logs | `UNSUBSCRIBED` |
-| Any other message | Generic acknowledgement | `MESSAGE` |
+The webhook auto-replies based on message content — RSVP button taps, transportation requests, HELP, STOP, and general queries are all handled and logged with the appropriate status.
 
 ---
 
 ## Google Sheets Structure
 
-Each campaign run automatically creates a new tab. Permanent system tabs are never deleted.
-
-| Tab | Type | Contents |
-|-----|------|----------|
-| `hr_easter_rsvp_2026 \| 2026-03-17 17:21` | Campaign (auto-created per run) | Name, Phone, Message SID, Status, Error Code, Sent At |
-| `Reply History` | Permanent | Every inbound reply ever received across all campaigns |
-| `ReadReceipts` | Permanent | Delivery and read status updates via webhook callbacks |
-| `UnnamedContacts` | Permanent | WhatsApp display names auto-captured for contacts without a saved name |
-| `Campaign History` | Permanent | Consolidated outbound history across all past campaigns |
+Each campaign automatically creates two tabs: `<template_name>` (outbound send log) and `<template_name> reply` (inbound replies). Permanent tabs — `Reply History`, `ReadReceipts`, and `UnnamedContacts` — are never deleted and track activity across all campaigns.
 
 ---
 
@@ -186,19 +170,15 @@ python send_invitations.py
 
 ```bash
 source venv/bin/activate
-python send_invitations.py
+
+# Test send to a single number first
+python send_invitations.py --sid HX<content_sid> --test 1xxxxxxxxxx
+
+# Send to all contacts
+python send_invitations.py --sid HX<content_sid>
 ```
 
-The script will:
-1. Fetch the template name from Twilio
-2. Create a new timestamped Google Sheet tab
-3. Send to all contacts in `contacts.csv` with live progress:
-   ```
-   [  1/565] Aarush                    12013095172  →  📬 delivered
-   [  2/565] Abhishek Karam            16602386689  →  📬 delivered
-   [  3/565] Abanoub Mikhaeil          15517271613  →  📵 no whatsapp  [err 63024]
-   ```
-4. Print a final summary on completion
+The script fetches the template name from Twilio automatically, creates the Google Sheet tab named after the template, and prints a live progress summary on completion.
 
 ---
 
