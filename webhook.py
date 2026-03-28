@@ -276,6 +276,33 @@ def whatsapp_webhook():
             "Please share your full address and contact details and our team will get back to you shortly."
         )
 
+    elif button_payload == "coming":
+        status = "RSVP_YES"
+        command_type = "RSVP_YES"
+        reply_text = (
+            "Wonderful! We look forward to seeing you tonight! 🎭\n\n"
+            "⏰ Doors open at 6:00 PM\n"
+            "📍 951 West Side Ave, Jersey City\n\n"
+            "God bless you! 🙏"
+        )
+
+    elif button_payload == "not coming":
+        status = "RSVP_NO"
+        command_type = "RSVP_NO"
+        reply_text = (
+            "We're sorry to hear that! 🙏\n\n"
+            "We'll keep you in our prayers and hope to see you at our next event. God bless you!"
+        )
+
+    elif button_payload == "Doubt":
+        status = "RSVP_MAYBE"
+        command_type = "RSVP_MAYBE"
+        reply_text = (
+            "No worries! If you decide to come, doors open at 6:00 PM. 🎭\n\n"
+            "📍 951 West Side Ave, Jersey City\n\n"
+            "We'd love to see you there! 🙏"
+        )
+
     elif button_payload == "Easter_celeb":
         status = "RSVP_CONFIRMED"
         command_type = "RSVP_YES"
