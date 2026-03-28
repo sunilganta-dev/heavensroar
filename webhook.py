@@ -33,7 +33,6 @@ SYSTEM_TABS = {
     "Config", "Sheet1", "— Ready for next campaign —"
 }
 
-_sheet = None
 _status_sheet = None
 _history_sheet = None
 
@@ -44,11 +43,9 @@ def get_spreadsheet():
 
 
 def get_sheet():
-    """Returns the reply tab for the current campaign (named '<template> reply')."""
-    global _sheet
-    if _sheet is not None:
-        return _sheet
-
+    """Returns the reply tab for the current campaign (named '<template> reply').
+    Always re-checks the latest campaign tab — no restart or env update needed for new templates.
+    """
     spreadsheet = get_spreadsheet()
     existing_tabs = [ws.title for ws in spreadsheet.worksheets()]
 
@@ -62,15 +59,15 @@ def get_sheet():
     tab_name = f"{base_tab} reply"
 
     if tab_name not in existing_tabs:
-        _sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
-        _sheet.append_row(["Name", "Phone Number", "Message", "Date", "Time", "Status"])
-        _sheet.freeze(rows=1)
+        sheet = spreadsheet.add_worksheet(title=tab_name, rows=1000, cols=6)
+        sheet.append_row(["Name", "Phone Number", "Message", "Date", "Time", "Status"])
+        sheet.freeze(rows=1)
         print(f"✅ Created reply tab: {tab_name}")
     else:
-        _sheet = spreadsheet.worksheet(tab_name)
+        sheet = spreadsheet.worksheet(tab_name)
         print(f"✅ Connected to reply tab: {tab_name}")
 
-    return _sheet
+    return sheet
 
 
 def get_history_sheet():
