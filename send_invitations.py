@@ -11,6 +11,7 @@ from google.oauth2.service_account import Credentials
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--test", metavar="PHONE", help="Send only to this number (test mode)")
+parser.add_argument("--sid", metavar="CONTENT_SID", help="Twilio Content Template SID to use")
 args = parser.parse_args()
 
 load_dotenv()
@@ -20,8 +21,8 @@ auth_token    = os.getenv("TWILIO_AUTH_TOKEN")
 whatsapp_from = os.getenv("TWILIO_WHATSAPP_FROM")
 BASE_URL      = os.getenv("BASE_URL", "").strip().rstrip("/")
 
-# ── New approved template ─────────────────────────────────────────────────────
-content_sid = "HXa038c957fa181caffa072c782cb8e588"   # copy_sat_play
+# ── Template SID: pass via --sid or falls back to the last used one ───────────
+content_sid = args.sid or "HXa038c957fa181caffa072c782cb8e588"   # copy_sat_play
 
 if not account_sid or not auth_token or not whatsapp_from:
     raise ValueError("Missing TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, or TWILIO_WHATSAPP_FROM in .env")
