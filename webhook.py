@@ -292,7 +292,7 @@ def whatsapp_webhook():
             "Wonderful! We look forward to seeing you! 🎵\n\n"
             "*Ignite Worship Night*\n"
             "📅 July 18, 2026\n"
-            "⏰ 7:00 PM\n"
+            "⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "God bless you! 🙏"
         )
@@ -311,7 +311,7 @@ def whatsapp_webhook():
         reply_text = (
             "No worries! If you decide to come, here are the details: 🎵\n\n"
             "*Ignite Worship Night*\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "We'd love to see you there! 🙏"
         )
@@ -340,7 +340,7 @@ def whatsapp_webhook():
             "Thank you for your interest in Heaven's Roar! 🎵\n\n"
             "*Ignite Worship Night*\n"
             "📅 July 18, 2026\n"
-            "⏰ 7:00 PM\n"
+            "⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n"
             "📱 Follow us @jfmheavensroar\n\n"
@@ -372,7 +372,7 @@ def whatsapp_webhook():
         reply_text = (
             "Everyone is welcome — bring your whole family! 🙏\n\n"
             "*Ignite Worship Night*\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "We'd love to see you all there! 🎵"
         )
@@ -383,7 +383,7 @@ def whatsapp_webhook():
         reply_text = (
             "The event is *free to attend*! 🎉\n\n"
             "No tickets needed — just show up:\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "God bless you! 🙏"
         )
@@ -404,7 +404,7 @@ def whatsapp_webhook():
         reply_text = (
             "Amen! 🙌 We're excited too!\n\n"
             "See you at *Ignite Worship Night*:\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "God bless you! 🙏"
         )
@@ -416,7 +416,7 @@ def whatsapp_webhook():
             "Plan for an *evening of worship and ministry*! 🎵\n\n"
             "For exact timing details, contact us:\n"
             "📞 +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306"
         )
 
@@ -427,7 +427,7 @@ def whatsapp_webhook():
             "Come as you are! 😊\n\n"
             "There's no dress code — just bring your heart ready to worship. 🙏\n\n"
             "*Ignite Worship Night*\n"
-            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📅 July 18, 2026 | ⏰ 6:30 PM\n"
             "📍 951 Westside Ave, Jersey City, NJ 07306"
         )
 
