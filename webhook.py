@@ -246,9 +246,18 @@ def whatsapp_webhook():
     # DECISION LOGIC
     # =========================
 
-    UPDATE_KEYWORDS = ["update", "change", "edit", "rename", "correct", "fix my name", "wrong name"]
-    DETAILS_KEYWORDS = ["details", "detail", "when", "where", "what time", "location", "address", "show", "play", "event", "info", "information", "ticket", "tickets", "schedule"]
+    UPDATE_KEYWORDS    = ["update", "change", "edit", "rename", "correct", "fix my name", "wrong name"]
+    DETAILS_KEYWORDS   = ["details", "detail", "when", "where", "what time", "location", "address", "show", "play", "event", "info", "information", "schedule"]
     TRANSPORT_KEYWORDS = ["transport", "transportation", "ride", "pickup", "pick up", "pick-up", "drop", "drop off", "dropoff", "bus", "car", "drive", "driving", "lift", "commute"]
+    PARKING_KEYWORDS   = ["parking", "park my car", "where to park", "park near", "parked"]
+    FOOD_KEYWORDS      = ["food", "eat", "eating", "refreshment", "snack", "drink", "dinner", "lunch", "meal", "serve food", "serving food"]
+    FAMILY_KEYWORDS    = ["kids", "children", "child", "baby", "babies", "family", "bring my", "youth", "teen", "teenager", "toddler", "infant"]
+    COST_KEYWORDS      = ["free", "cost", "price", "ticket", "tickets", "fee", "charge", "pay", "paid", "how much", "entry fee", "admission"]
+    PRAYER_KEYWORDS    = ["pray", "prayer", "prayer request", "praying for", "please pray", "keep me in prayer"]
+    PRAISE_KEYWORDS    = ["amen", "praise", "hallelujah", "glory", "halleluya", "blessed", "can't wait", "cant wait", "looking forward", "so excited", "excited to", "praise god", "praise the lord", "thank god", "glory to god"]
+    DURATION_KEYWORDS  = ["how long", "end time", "ends at", "finish at", "what time does it end", "over at", "duration", "how many hours"]
+    DRESS_KEYWORDS     = ["wear", "dress code", "dress up", "attire", "outfit", "clothes", "formal", "casual", "what to wear", "what should i wear"]
+    CONTACT_KEYWORDS   = ["contact", "phone number", "reach you", "call you", "email", "social media", "instagram", "facebook", "who to call"]
 
     if msg_upper in ["STOP", "UNSUBSCRIBE", "CANCEL", "END", "QUIT", "OPTOUT", "OPT OUT"]:
         status = "UNSUBSCRIBED"
@@ -276,17 +285,19 @@ def whatsapp_webhook():
             "Please share your full address and contact details and our team will get back to you shortly."
         )
 
-    elif button_payload == "coming":
+    elif button_payload in ("coming", "Yes, I'm coming"):
         status = "RSVP_YES"
         command_type = "RSVP_YES"
         reply_text = (
-            "Wonderful! We look forward to seeing you tonight! 🎭\n\n"
-            "⏰ Doors open at 6:00 PM\n"
-            "📍 951 West Side Ave, Jersey City\n\n"
+            "Wonderful! We look forward to seeing you! 🎵\n\n"
+            "*Ignite Worship Night*\n"
+            "📅 July 18, 2026\n"
+            "⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "God bless you! 🙏"
         )
 
-    elif button_payload == "not coming":
+    elif button_payload in ("not coming", "Sorry, Can't make it"):
         status = "RSVP_NO"
         command_type = "RSVP_NO"
         reply_text = (
@@ -294,12 +305,14 @@ def whatsapp_webhook():
             "We'll keep you in our prayers and hope to see you at our next event. God bless you!"
         )
 
-    elif button_payload == "Doubt":
+    elif button_payload in ("Doubt", "Not Sure"):
         status = "RSVP_MAYBE"
         command_type = "RSVP_MAYBE"
         reply_text = (
-            "No worries! If you decide to come, doors open at 6:00 PM. 🎭\n\n"
-            "📍 951 West Side Ave, Jersey City\n\n"
+            "No worries! If you decide to come, here are the details: 🎵\n\n"
+            "*Ignite Worship Night*\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
             "We'd love to see you there! 🙏"
         )
 
@@ -307,13 +320,8 @@ def whatsapp_webhook():
         status = "RSVP_CONFIRMED"
         command_type = "RSVP_YES"
         reply_text = (
-            "Thank you for confirming! 🌸\n\n"
-            "*Cost of Love — A Powerful Easter Drama*\n"
-            "📅 March 28, 2026\n"
-            "⏰ 6:00 PM\n"
-            "📍 951 Westside Ave, Jersey City, NJ\n\n"
-            "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
-            "We look forward to seeing you!"
+            "Thank you for confirming! 🙏\n\n"
+            "We look forward to seeing you at the next Heaven's Roar event!"
         )
 
     elif any(kw in incoming_msg.lower() for kw in UPDATE_KEYWORDS):
@@ -329,21 +337,118 @@ def whatsapp_webhook():
         status = "DETAILS_REQUESTED"
         command_type = "DETAILS"
         reply_text = (
-            "Thank you for your interest in Heaven's Roar! 🎭\n\n"
-            "*Cost of Love — A Powerful Easter Drama*\n"
-            "📅 March 28, 2026\n"
-            "⏰ 6:00 PM\n"
-            "📍 951 Westside Ave, Jersey City, NJ\n\n"
-            "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
+            "Thank you for your interest in Heaven's Roar! 🎵\n\n"
+            "*Ignite Worship Night*\n"
+            "📅 July 18, 2026\n"
+            "⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
+            "📞 Contact: +1 (201) 234-1948 | +1 (551) 998-7011\n"
+            "📱 Follow us @jfmheavensroar\n\n"
             "We look forward to seeing you there! 🙏"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in PARKING_KEYWORDS):
+        status = "PARKING_QUERY"
+        command_type = "PARKING"
+        reply_text = (
+            "Street parking is available near the venue. 🚗\n\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
+            "For specific parking needs, contact us:\n"
+            "📞 +1 (201) 234-1948 | +1 (551) 998-7011"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in FOOD_KEYWORDS):
+        status = "FOOD_QUERY"
+        command_type = "FOOD"
+        reply_text = (
+            "For refreshment details at the event, please contact us directly:\n\n"
+            "📞 +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
+            "We look forward to seeing you at *Ignite Worship Night* on July 18! 🎵"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in FAMILY_KEYWORDS):
+        status = "FAMILY_QUERY"
+        command_type = "FAMILY"
+        reply_text = (
+            "Everyone is welcome — bring your whole family! 🙏\n\n"
+            "*Ignite Worship Night*\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
+            "We'd love to see you all there! 🎵"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in COST_KEYWORDS):
+        status = "COST_QUERY"
+        command_type = "COST"
+        reply_text = (
+            "The event is *free to attend*! 🎉\n\n"
+            "No tickets needed — just show up:\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
+            "God bless you! 🙏"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in PRAYER_KEYWORDS):
+        status = "PRAYER_REQUEST"
+        command_type = "PRAYER"
+        reply_text = (
+            "We're honored to pray for you! 🙏\n\n"
+            "Please share your prayer request and our team will lift it up before God.\n\n"
+            "You can also reach us at:\n"
+            "📞 +1 (201) 234-1948 | +1 (551) 998-7011"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in PRAISE_KEYWORDS):
+        status = "PRAISE"
+        command_type = "PRAISE"
+        reply_text = (
+            "Amen! 🙌 We're excited too!\n\n"
+            "See you at *Ignite Worship Night*:\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306\n\n"
+            "God bless you! 🙏"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in DURATION_KEYWORDS):
+        status = "DURATION_QUERY"
+        command_type = "DURATION"
+        reply_text = (
+            "Plan for an *evening of worship and ministry*! 🎵\n\n"
+            "For exact timing details, contact us:\n"
+            "📞 +1 (201) 234-1948 | +1 (551) 998-7011\n\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in DRESS_KEYWORDS):
+        status = "DRESS_QUERY"
+        command_type = "DRESS"
+        reply_text = (
+            "Come as you are! 😊\n\n"
+            "There's no dress code — just bring your heart ready to worship. 🙏\n\n"
+            "*Ignite Worship Night*\n"
+            "📅 July 18, 2026 | ⏰ 7:00 PM\n"
+            "📍 951 Westside Ave, Jersey City, NJ 07306"
+        )
+
+    elif any(kw in incoming_msg.lower() for kw in CONTACT_KEYWORDS):
+        status = "CONTACT_QUERY"
+        command_type = "CONTACT"
+        reply_text = (
+            "You can reach us at:\n\n"
+            "📞 +1 (201) 234-1948\n"
+            "📞 +1 (551) 998-7011\n"
+            "📱 Instagram: @jfmheavensroar\n\n"
+            "We're happy to help! 🙏"
         )
 
     else:
         status = "ACTIVE"
         command_type = "MESSAGE"
         reply_text = (
-            "Thank you for your message! 🙏\n\n"
-            "Our team will be in touch. "
+            "Thank you for reaching out to Heaven's Roar! 🙏\n\n"
+            "Our team will get back to you shortly.\n"
+            "For urgent queries: 📞 +1 (201) 234-1948"
         )
 
     # =========================
