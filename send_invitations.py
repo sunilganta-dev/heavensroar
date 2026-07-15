@@ -132,7 +132,8 @@ else:
 total = len(contacts)
 
 # ── Results file ──────────────────────────────────────────────────────────────
-results_file = f"send_results_{template_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
+os.makedirs("send_logs", exist_ok=True)
+results_file = os.path.join("send_logs", f"send_results_{template_name}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv")
 with open(results_file, "w", newline="", encoding="utf-8") as f:
     csv.writer(f).writerow(["Name","PhoneNumber","MessageSID","Status","Error_Code","Error_Message"])
 
