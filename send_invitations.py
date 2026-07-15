@@ -58,7 +58,14 @@ SHEET_NAME  = os.getenv("GOOGLE_SHEET_NAME", "HeavensRoar WhatsApp Logs")
 print(f"🔍 Fetching template info for {content_sid} ...")
 template      = client.content.v1.contents(content_sid).fetch()
 template_name = template.friendly_name
-print(f"📋 Template : {template_name}")
+
+# Detect if template body contains {{1}} variable
+import re as _re
+_all_body = " ".join(
+    str(v.get("body", "")) for v in (template.types or {}).values()
+)
+HAS_NAME_VAR = bool(_re.search(r"\{\{1\}\}", _all_body))
+print(f"📋 Template : {template_name}  (name variable: {'yes' if HAS_NAME_VAR else 'no'})")
 
 SYSTEM_TABS = {"Reply History", "ReadReceipts", "UnnamedContacts"}
 
@@ -90,6 +97,16 @@ else:
         ])
         campaign_sheet.freeze(rows=1)
         print(f"✅ Created Google Sheet tab: {tab_title}")
+
+    # Pre-create reply tab so it exists before first reply arrives
+    reply_title = f"{tab_title} reply"
+    if reply_title not in existing_titles:
+        reply_sheet = spreadsheet.add_worksheet(title=reply_title, rows=1000, cols=6)
+        reply_sheet.append_row(["Name", "Phone Number", "Message", "Date", "Time", "Status"])
+        reply_sheet.freeze(rows=1)
+        print(f"✅ Created reply tab: {reply_title}")
+    else:
+        print(f"✅ Reply tab already exists: {reply_title}")
 
 # ── Load contacts ─────────────────────────────────────────────────────────────
 def clean_header(h):
@@ -146,13 +163,16 @@ for idx, row in enumerate(contacts, 1):
     prefix = f"[{idx:>4}/{total}]"
 
     try:
-        msg = client.messages.create(
+        create_kwargs = dict(
             from_=whatsapp_from,
             to=to_number,
             content_sid=content_sid,
-            content_variables=json.dumps({"1": name}),
-            **( {"status_callback": f"{BASE_URL}/status-callback"} if BASE_URL else {} )
         )
+        if HAS_NAME_VAR:
+            create_kwargs["content_variables"] = json.dumps({"1": name})
+        if BASE_URL:
+            create_kwargs["status_callback"] = f"{BASE_URL}/status-callback"
+        msg = client.messages.create(**create_kwargs)
 
         final_status = msg.status
         final_error_code    = ""

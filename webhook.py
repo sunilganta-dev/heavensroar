@@ -285,7 +285,7 @@ def whatsapp_webhook():
             "Please share your full address and contact details and our team will get back to you shortly."
         )
 
-    elif button_payload in ("coming", "Yes, I'm coming"):
+    elif button_payload in ("coming", "Yes, I'm coming", "I'm coming"):
         status = "RSVP_YES"
         command_type = "RSVP_YES"
         reply_text = (
@@ -297,7 +297,7 @@ def whatsapp_webhook():
             "God bless you! 🙏"
         )
 
-    elif button_payload in ("not coming", "Sorry, Can't make it"):
+    elif button_payload in ("not coming", "Sorry, Can't make it", "Sorry Can't make it"):
         status = "RSVP_NO"
         command_type = "RSVP_NO"
         reply_text = (
